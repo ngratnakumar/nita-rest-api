@@ -13,7 +13,6 @@ use App\Models\AuditLog;
 |--------------------------------------------------------------------------
 */
 Route::post('/login', [AuthController::class, 'login'])->name('login');
-Route::post('/admin/users/sync', [ManagementController::class, 'syncExternalUser']);
 
 /*
 |--------------------------------------------------------------------------
@@ -41,12 +40,16 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 
     Route::get('/services/{service}', fn(Service $service) => response()->json($service));
-    Route::get('/roles', fn() => response()->json(Role::all()));
+    
+    // Updated: Load services with roles for the Access Matrix to work
+    Route::get('/roles', function() {
+        return Role::with('services')->get();
+    });
+
     Route::get('/me', [AuthController::class, 'me']);
 
     /**
-     * Service-Specific Logic
-     * Access is restricted by the 'service' middleware
+     * Service-Specific Logic (Protected by 'service' middleware)
      */
     Route::middleware('service:vpn')->get('/vpn/credentials', function () {
         return ["username" => auth()->user()->username, "config" => "VPN_DATA_HERE"];
@@ -66,20 +69,23 @@ Route::middleware('auth:sanctum')->group(function () {
      */
     Route::middleware('can:manage-system')->prefix('admin')->group(function () {
         
-        // User & Role Management
-        Route::post('/users/sync', [ManagementController::class, 'syncExternalUser']);
+        // User Sync & Management
         Route::get('/users', [ManagementController::class, 'indexUsers']);
+        Route::post('/users/sync', [ManagementController::class, 'syncExternalUser']);
         Route::put('/users/{user}/roles', [ManagementController::class, 'syncUserRoles']);
-        Route::post('/users/assign-role', [ManagementController::class, 'assignRoleToUser']);
+        
+        // Role & Matrix Management
         Route::post('/roles', [ManagementController::class, 'storeRole']);
+        // This is the route the Access Matrix (Roles.tsx) uses:
+        Route::put('/roles/{role}/services', [ManagementController::class, 'syncRoleServices']);
+        Route::delete('/roles/{role}', [ManagementController::class, 'destroyRole']);
         
         // Service Management
         Route::post('/services', [ManagementController::class, 'storeService']);
         Route::patch('/services/{service}', [ManagementController::class, 'updateService']);
         Route::delete('/services/{service}', [ManagementController::class, 'destroyService']);
         
-        // Access Matrix & Logs
-        Route::get('/matrix', [ManagementController::class, 'getAccessMatrix']);
+        // Audit Logs
         Route::get('/logs', function () {
             return AuditLog::with('user:id,username,name')
                             ->latest()
