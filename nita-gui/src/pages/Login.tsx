@@ -15,16 +15,18 @@ const Login = () => {
     setError('');
     
     try {
-      // Remove the SHA256 line and send 'password' directly
       const response = await api.post('/login', { 
         username, 
-        password, // Raw password is now safe over HTTPS
+        password, 
         type 
       });
 
-      // After successful login, store token and move to dashboard
-      localStorage.setItem('nita_token', response.data.token);
-      localStorage.setItem('user_name', response.data.user.name);
+      // SYNC THESE KEYS WITH App.tsx
+      localStorage.setItem('token', response.data.token); 
+      // Store the full user object so App.tsx can check for 'admin' role
+      localStorage.setItem('user', JSON.stringify(response.data.user));
+      
+      // Navigate to dashboard
       navigate('/dashboard');
 
     } catch (err: any) {

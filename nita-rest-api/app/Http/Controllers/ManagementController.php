@@ -10,6 +10,29 @@ use Illuminate\Support\Facades\Gate;
 
 class ManagementController extends Controller
 {
+
+    public function syncExternalUser(Request $request) {
+        $request->validate(['username' => 'required|string']);
+        $username = $request->username;
+
+        $user = \App\Models\User::where('username', $request->username)->first();
+
+        if (!$user) {
+            // Here you could optionally verify against LDAP, 
+            // but for management, we create the 'Shadow User' record
+            $user = \App\Models\User::create([
+                'username' => $request->username,
+                'name' => $request->username, // Admin can edit this later
+                'password' => bcrypt(str_random(16)), // Randomized for security
+                'type' => 1, // Marking as LDAP/IPA type
+            ]);
+            
+            auth()->user()->logAction('sync_user', "Imported user: {$request->username}");
+        }
+
+        return response()->json($user->load('roles'));
+    }
+
     // 1. Create a new Service (e.g., 'gitlab', 'ncra cloud')
     // Update the storeService to include all fields from your schema
     public function storeService(Request $request) {
