@@ -11,16 +11,27 @@ use Illuminate\Support\Facades\Gate;
 class ManagementController extends Controller
 {
     // 1. Create a new Service (e.g., 'gitlab', 'ncra cloud')
+    // Update the storeService to include all fields from your schema
     public function storeService(Request $request) {
         Gate::authorize('manage-system');
 
-        $data = $request->validate(['name' => 'required|unique:services,name']);
+        $data = $request->validate([
+            'name' => 'required|unique:services,name',
+            'slug' => 'required|unique:services,slug',
+            'url'  => 'required|url',
+            'category' => 'nullable|string',
+            'icon' => 'nullable|string'
+        ]);
+        
         $service = Service::create($data);
-
-        // LOG THE ACTION
         auth()->user()->logAction('create_service', "Service: {$service->name}");
 
-        return $service;
+        return response()->json($service, 201);
+    }
+
+    // Add this to help the frontend Role Management UI
+    public function getAllRoles() {
+        return response()->json(Role::all());
     }
 
     // 2. Create a new Role (e.g., 'project_student')
@@ -102,5 +113,23 @@ class ManagementController extends Controller
             'total_services' => Service::count(),
             'roles_mapping' => $matrix
         ]);
+    }
+
+    public function indexUsers()
+    {
+        return response()->json(User::with('roles')->get());
+    }
+
+    // Assign multiple roles to a user (Replacement for assignRoleToUser)
+    public function syncUserRoles(Request $request, User $user)
+    {
+        $request->validate([
+            'role_ids' => 'required|array',
+            'role_ids.*' => 'exists:roles,id'
+        ]);
+
+        $user->roles()->sync($request->role_ids);
+        
+        return response()->json(['message' => 'Roles updated successfully', 'user' => $user->load('roles')]);
     }
 }
