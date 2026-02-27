@@ -1,5 +1,5 @@
-import { User, Shield, LogOut, LayoutDashboard, Users, Server, Key } from 'lucide-react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { User, Shield, LogOut, LayoutDashboard, Users, Server, Key, ShieldCheck } from 'lucide-react';
+import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 
 export default function Sidebar() {
     const location = useLocation();
@@ -43,6 +43,10 @@ export default function Sidebar() {
                     <LayoutDashboard size={18} />
                     <span className="text-sm">My Services</span>
                 </Link>
+                <NavLink to="/admin/roles-config" className={({ isActive }) => `flex items-center gap-2 p-2 rounded ${isActive ? 'bg-blue-600 text-white' : 'text-gray-600'}`}>
+                <ShieldCheck size={20} />
+                    <span>Role Settings</span>
+                </NavLink>
 
                 {/* ADMIN TOOLS - Only rendered if isAdmin is true */}
                 {isAdmin && (

@@ -14,10 +14,11 @@ return new class extends Migration
         Schema::create('users', function (Blueprint $table) {
             $table->id();
             $table->string('name');
-            $table->string('username')->unique(); // For 'ratnakumar'
-            $table->string('email')->nullable(); 
+            $table->string('username')->unique(); // Add this
+            $table->string('email')->nullable()->unique();
             $table->timestamp('email_verified_at')->nullable();
-            $table->string('password'); // LDAP users need a dummy password locally
+            $table->string('password');
+            $table->integer('type')->default(0); // Add this (0: Local, 1: LDAP, 2: IPA)
             $table->rememberToken();
             $table->timestamps();
         });

@@ -68,7 +68,8 @@ Route::middleware('auth:sanctum')->group(function () {
      * Protected by the 'manage-system' Gate
      */
     Route::middleware('can:manage-system')->prefix('admin')->group(function () {
-        
+        Route::post('/test-ldap', [ManagementController::class, 'testLdapConnection']);    
+
         // User Sync & Management
         Route::get('/users', [ManagementController::class, 'indexUsers']);
         Route::post('/users/sync', [ManagementController::class, 'syncExternalUser']);
@@ -79,12 +80,16 @@ Route::middleware('auth:sanctum')->group(function () {
         // This is the route the Access Matrix (Roles.tsx) uses:
         Route::put('/roles/{role}/services', [ManagementController::class, 'syncRoleServices']);
         Route::delete('/roles/{role}', [ManagementController::class, 'destroyRole']);
+        Route::post('/roles', [ManagementController::class, 'storeRole']);
+        Route::patch('/roles/{role}', [ManagementController::class, 'updateRole']);
         
         // Service Management
         Route::post('/services', [ManagementController::class, 'storeService']);
         Route::patch('/services/{service}', [ManagementController::class, 'updateService']);
         Route::delete('/services/{service}', [ManagementController::class, 'destroyService']);
         
+        Route::put('/services/{service}/roles', [ManagementController::class, 'syncServiceRoles']);
+
         // Audit Logs
         Route::get('/logs', function () {
             return AuditLog::with('user:id,username,name')

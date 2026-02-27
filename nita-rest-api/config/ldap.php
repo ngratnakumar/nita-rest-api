@@ -26,35 +26,30 @@ return [
     |
     */
 
+// config/ldap.php
+
     'connections' => [
 
         'openldap' => [
-            'hosts' => [env('LDAP_HOST')],
-            'username' => env('LDAP_USERNAME'),
-            'password' => env('LDAP_PASSWORD'),
+            'hosts' => [env('LDAP_HOST', 'ns.ncra.tifr.res.in')],
+            'username' => env('LDAP_USERNAME'), 
+            'password' => env('LDAP_PASSWORD'), 
             'port' => env('LDAP_PORT', 389),
-            'base_dn' => env('LDAP_BASE_DN'),
-            'timeout' => env('LDAP_TIMEOUT'),
-            'use_ssl' => env('LDAP_SSL'),
-            'use_tls' => env('LDAP_TLS'),
-            'use_sasl' => env('LDAP_SASL'),
-            'sasl_options' => [
-                // 'mech' => 'GSSAPI',
-            ],
+            'base_dn' => env('LDAP_BASE_DN', 'dc=ncra,dc=in'),
+            'timeout' => env('LDAP_TIMEOUT', 5),
+            'use_ssl' => env('LDAP_SSL', false),
+            'use_tls' => env('LDAP_TLS', false),
         ],
+
         'freeipa' => [
-            'hosts' => [env('IPA_HOST')],
-            'username' => env('IPA_USERNAME'),
-            'password' => env('IPA_PASSWORD'),
+            'hosts' => [env('IPA_HOST', 'bhimaipa.ncra.tifr.res.in')],
+            'username' => env('IPA_USERNAME'), 
+            'password' => env('IPA_PASSWORD'), 
             'port' => env('IPA_PORT', 389),
             'base_dn' => env('IPA_BASE_DN'),
-            'timeout' => env('IPA_TIMEOUT'),
-            'use_ssl' => env('IPA_SSL'),
-            'use_tls' => env('IPA_TLS'),
-            'use_sasl' => env('IPA_SASL'),
-            'sasl_options' => [
-                // 'mech' => 'GSSAPI',
-            ],
+            'timeout' => env('IPA_TIMEOUT', 5),
+            'use_ssl' => env('IPA_SSL', false),
+            'use_tls' => env('IPA_TLS', false),
         ],
 
     ],

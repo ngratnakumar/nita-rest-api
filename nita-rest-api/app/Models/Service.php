@@ -7,9 +7,10 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class Service extends Model
 {
-    protected $fillable = ['name'];
+    protected $fillable = ['name', 'slug', 'url', 'category', 'icon'];
 
-    public function roles(): BelongsToMany {
+    public function roles()
+    {
         return $this->belongsToMany(Role::class);
     }
 }

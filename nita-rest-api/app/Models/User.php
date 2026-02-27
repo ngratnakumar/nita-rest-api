@@ -59,15 +59,17 @@ class User extends Authenticatable
         })->exists();
     }
 
-    public function logAction($action, $target, $details = null)
+    public function logAction($action, $details)
     {
-        return \App\Models\AuditLog::create([
-            'user_id' => $this->id,
+        return $this->auditLogs()->create([
             'action' => $action,
-            'target' => $target,
             'details' => $details,
-            'ip_address' => request()->ip(),
         ]);
+    }
+
+    public function auditLogs()
+    {
+        return $this->hasMany(AuditLog::class);
     }
 
     public function getAuthIdentifierName()
