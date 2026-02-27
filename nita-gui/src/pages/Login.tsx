@@ -40,7 +40,7 @@ const Login = () => {
             <ShieldCheck className="text-white w-8 h-8" />
           </div>
           <h1 className="text-2xl font-bold text-slate-800">NITA GUI</h1>
-          <p className="text-slate-500 text-sm font-medium">Network Infrastructure & Trust Authority</p>
+          <p className="text-slate-500 text-sm font-medium">NCRA IT Assitant</p>
         </div>
 
         <form onSubmit={handleLogin} className="space-y-5">
