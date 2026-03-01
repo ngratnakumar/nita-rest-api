@@ -202,6 +202,25 @@ class ManagementController extends Controller
         return response()->json($role);
     }
 
+    public function destroyRole(Role $role)
+    {
+        Gate::authorize('manage-system');
+
+        if ($role->name === 'admin') {
+            return response()->json(['message' => 'The core admin role cannot be deleted.'], 403);
+        }
+
+        // Prevent deletion if users have this role
+        if ($role->users()->exists()) {
+            return response()->json(['message' => 'Cannot delete. Users are still assigned to this role.'], 422);
+        }
+
+        $role->services()->detach();
+        $role->delete();
+
+        return response()->json(['message' => 'Role deleted successfully.']);
+    }
+
     /**
      * This method handles the logic specifically for the Matrix toggle
      */

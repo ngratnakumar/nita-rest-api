@@ -6,6 +6,7 @@ const UsersAdmin = () => {
     const [users, setUsers] = useState<any[]>([]);
     const [roles, setRoles] = useState<any[]>([]);
     const [searchTerm, setSearchTerm] = useState('');
+    const [listSearchTerm, setListSearchTerm] = useState('');
     const [loading, setLoading] = useState(false);
     const [initialLoad, setInitialLoad] = useState(true);
     const [updatingId, setUpdatingId] = useState<number | null>(null);
@@ -193,6 +194,15 @@ const UsersAdmin = () => {
 
             {/* USERS TABLE */}
             <div className="bg-white shadow-sm border border-slate-200 rounded-xl overflow-hidden">
+                <div className="p-4 border-b border-slate-200 bg-slate-50">
+                    <input
+                        type="text"
+                        placeholder="Filter users by name or username..."
+                        className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                        value={listSearchTerm}
+                        onChange={(e) => setListSearchTerm(e.target.value)}
+                    />
+                </div>
                 <table className="w-full text-left border-collapse">
                     <thead>
                         <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 text-xs uppercase font-bold">
@@ -210,7 +220,10 @@ const UsersAdmin = () => {
                                     <p className="text-slate-400 text-sm mt-1">Use the discovery form above to add LDAP users.</p>
                                 </td>
                             </tr>
-                        ) : users.map(user => (
+                        ) : users.filter(user => 
+                            user.name.toLowerCase().includes(listSearchTerm.toLowerCase()) ||
+                            user.username.toLowerCase().includes(listSearchTerm.toLowerCase())
+                        ).map(user => (
                             <tr key={user.id} className={`transition-colors ${updatingId === user.id ? 'bg-blue-50/40' : 'hover:bg-slate-50/50'}`}>
                                 <td className="p-4">
                                     <div className="font-semibold text-slate-900">{user.name}</div>

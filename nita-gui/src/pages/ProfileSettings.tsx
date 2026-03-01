@@ -34,7 +34,7 @@ const ProfileSettings = () => {
 
         setLoading(true);
         try {
-            const response = await api.post('/change-password', {
+            await api.post('/change-password', {
                 current_password: currentPassword,
                 new_password: newPassword,
                 new_password_confirmation: newPasswordConfirm

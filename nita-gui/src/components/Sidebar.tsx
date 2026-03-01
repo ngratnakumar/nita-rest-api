@@ -88,23 +88,24 @@ export default function Sidebar() {
                 
                 <Link to="/dashboard" className={getLinkClass('/dashboard')}>
                     <LayoutDashboard size={18} />
-                    <span className="text-sm font-medium">My Services</span>
+                    <span className="text-sm font-medium">My Dashboard</span>
                 </Link>
 
                 {isAdmin && (
                     <div className="pt-6 space-y-1">
                         <p className="text-[10px] font-black text-slate-500 uppercase px-3 mb-2 tracking-[0.2em]">Management</p>
-                        
+                        <Link to="/admin/roles-config" className={getLinkClass('/admin/roles-config')}>
+                            <Users size={18} />
+                            <span className="text-sm font-medium">Roles Management</span>
+                        </Link>
                         <Link to="/admin/users" className={getLinkClass('/admin/users')}>
                             <Users size={18} />
-                            <span className="text-sm font-medium">Users & Roles</span>
+                            <span className="text-sm font-medium">Users & Roles Mapping</span>
                         </Link>
-
                         <Link to="/admin/services" className={getLinkClass('/admin/services')}>
                             <Server size={18} />
                             <span className="text-sm font-medium">Service Registry</span>
                         </Link>
-
                         <Link to="/admin/roles" className={getLinkClass('/admin/roles')}>
                             <Key size={18} />
                             <span className="text-sm font-medium">Access Matrix</span>
