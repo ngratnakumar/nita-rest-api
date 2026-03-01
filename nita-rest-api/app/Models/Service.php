@@ -7,7 +7,13 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class Service extends Model
 {
-    protected $fillable = ['name', 'slug', 'url', 'category', 'icon'];
+    protected $fillable = ['name', 'slug', 'url', 'description', 'icon', 'image_path', 'category'];
+
+    // Add an accessor to ensure the full URL is returned for the image
+    public function getImagePathAttribute($value)
+    {
+        return $value ? asset('storage/' . $value) : null;
+    }
 
     public function roles()
     {

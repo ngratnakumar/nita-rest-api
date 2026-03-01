@@ -3,6 +3,7 @@
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\ManagementController;
+use App\Http\Controllers\MediaController;
 use App\Models\Role;
 use App\Models\Service;
 use App\Models\AuditLog;
@@ -16,40 +17,38 @@ Route::post('/login', [AuthController::class, 'login'])->name('login');
 
 /*
 |--------------------------------------------------------------------------
-| Authenticated Routes (Protecting all internal logic)
+| Authenticated Routes (Common for all Staff)
 |--------------------------------------------------------------------------
 */
 Route::middleware('auth:sanctum')->group(function () {
 
-    /**
-     * Discovery & Dashboard
-     * Returns services based on the user's roles
-     */
-    Route::get('/services', function () {
-        $user = auth()->user();
-
-        // Admin: Show all services
-        if ($user->roles()->where('name', 'admin')->exists()) {
-            return Service::all();
-        }
-
-        // Standard User: Show only services assigned to their roles
-        return Service::whereHas('roles', function ($query) use ($user) {
-            $query->whereIn('roles.id', $user->roles->pluck('id'));
-        })->get();
-    });
-
-    Route::get('/services/{service}', fn(Service $service) => response()->json($service));
-    
-    // Updated: Load services with roles for the Access Matrix to work
-    Route::get('/roles', function() {
-        return Role::with('services')->get();
-    });
-
     Route::get('/me', [AuthController::class, 'me']);
 
     /**
-     * Service-Specific Logic (Protected by 'service' middleware)
+     * Dashboard Discovery
+     * Lists services based on the user's specific roles.
+     */
+    Route::get('/services', function () {
+        $user = auth()->user();
+        
+        $query = Service::with('roles'); // Eager load for frontend logic
+
+        if (!$user->roles()->where('name', 'admin')->exists()) {
+            $query->whereHas('roles', function ($q) use ($user) {
+                $q->whereIn('roles.id', $user->roles->pluck('id'));
+            });
+        }
+        
+        return $query->get();
+    });
+
+    Route::get('/services/{service}', fn(Service $service) => response()->json($service->load('roles')));
+    
+    // Matrix Helper: Needed by the frontend to build the grid
+    Route::get('/roles', [ManagementController::class, 'getAllRoles']);
+
+    /**
+     * Service-Specific Credentials/Tokens
      */
     Route::middleware('service:vpn')->get('/vpn/credentials', function () {
         return ["username" => auth()->user()->username, "config" => "VPN_DATA_HERE"];
@@ -59,42 +58,48 @@ Route::middleware('auth:sanctum')->group(function () {
         return ["url" => "https://wiki.ncra.tifr.res.in", "token" => "WIKI_ACCESS_TOKEN"];
     });
 
-    Route::middleware('service:gitlab')->get('/gitlab/access', function () {
-        return ["status" => "active", "server" => "gitlab.ncra.tifr.res.in"];
-    });
-
-    /**
-     * Administrative Management (Super Admin Only)
-     * Protected by the 'manage-system' Gate
-     */
+    /*
+    |--------------------------------------------------------------------------
+    | Administrative Routes (manage-system only)
+    |--------------------------------------------------------------------------
+    */
     Route::middleware('can:manage-system')->prefix('admin')->group(function () {
-        Route::post('/test-ldap', [ManagementController::class, 'testLdapConnection']);    
-
-        // User Sync & Management
+        
+        // --- LDAP & User Control ---
         Route::get('/users', [ManagementController::class, 'indexUsers']);
         Route::post('/users/sync', [ManagementController::class, 'syncExternalUser']);
         Route::put('/users/{user}/roles', [ManagementController::class, 'syncUserRoles']);
         
-        // Role & Matrix Management
-        Route::post('/roles', [ManagementController::class, 'storeRole']);
-        // This is the route the Access Matrix (Roles.tsx) uses:
-        Route::put('/roles/{role}/services', [ManagementController::class, 'syncRoleServices']);
-        Route::delete('/roles/{role}', [ManagementController::class, 'destroyRole']);
+        // --- Role & Matrix Management ---
         Route::post('/roles', [ManagementController::class, 'storeRole']);
         Route::patch('/roles/{role}', [ManagementController::class, 'updateRole']);
+        Route::delete('/roles/{role}', [ManagementController::class, 'destroyRole']);
         
-        // Service Management
+        // The Sync Route used by Roles.tsx Matrix
+        Route::put('/roles/{role}/services', [ManagementController::class, 'syncRoleServices']);
+        
+        // --- Service (Tool) Management ---
+        Route::get('/services', [ManagementController::class, 'indexServices']);
         Route::post('/services', [ManagementController::class, 'storeService']);
-        Route::patch('/services/{service}', [ManagementController::class, 'updateService']);
+        
+        // Match PUT/PATCH to handle Multipart (Images) and JSON updates
+        Route::match(['put', 'patch'], '/services/{service}', [ManagementController::class, 'updateService']);
+        
         Route::delete('/services/{service}', [ManagementController::class, 'destroyService']);
         
+        // The Sync Route used by Services.tsx Form
         Route::put('/services/{service}/roles', [ManagementController::class, 'syncServiceRoles']);
 
-        // Audit Logs
+        // --- Media & Assets ---
+        Route::prefix('media')->group(function () {
+            Route::post('/upload', [MediaController::class, 'upload']);
+            Route::get('/icons', [MediaController::class, 'listIcons']);
+            Route::delete('/icons/{filename}', [MediaController::class, 'destroy']);
+        });
+
+        // --- Audit Logs ---
         Route::get('/logs', function () {
-            return AuditLog::with('user:id,username,name')
-                            ->latest()
-                            ->paginate(50);
+            return AuditLog::with('user:id,username,name')->latest()->paginate(50);
         });
     });
 });

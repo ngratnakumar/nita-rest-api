@@ -7,105 +7,165 @@ use App\Models\Role;
 use App\Models\Service;
 use App\Models\User;
 use Illuminate\Support\Facades\Gate;
-use Illuminate\Support\Str; // Added missing import
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use LdapRecord\Container;
 
 class ManagementController extends Controller
 {
     /**
-     * Import/Sync an LDAP or FreeIPA user into local SQLite.
+     * --- LDAP / User Sync ---
      */
     public function syncExternalUser(Request $request) 
     {
         $request->validate([
             'username' => 'required|string',
-            'type' => 'required|in:1,2', // 1: OpenLDAP, 2: FreeIPA
+            'type' => 'required|in:1,2' // 1: OpenLDAP, 2: FreeIPA
         ]);
 
-        $connectionName = ($request->type == '1') ? 'openldap' : 'freeipa';
-        
+        $connection = ($request->type == '1') ? 'openldap' : 'freeipa';
+
         try {
-            // Search the external directory
-            $ldapUser = \LdapRecord\Container::getConnection($connectionName)
-                ->query()
+            $connectionInstance = Container::getConnection($connection);
+
+            $ldapUser = $connectionInstance->query()
                 ->where('uid', '=', $request->username)
                 ->first();
 
             if (!$ldapUser) {
-                return response()->json(['message' => 'User not found in LDAP'], 404);
+                return response()->json(['message' => "User {$request->username} not found in {$connection}"], 404);
             }
 
-            // Create or Update the "Shadow User"
+            $name = $ldapUser->getFirstAttribute('cn') ?? $request->username;
+            $email = $ldapUser->getFirstAttribute('mail') ?? "{$request->username}@ncra.tifr.res.in";
+
             $user = User::updateOrCreate(
                 ['username' => $request->username],
                 [
-                    'name' => $ldapUser->getAttribute('cn')[0] ?? $request->username,
-                    'email' => $ldapUser->getAttribute('mail')[0] ?? null,
-                    'type' => $request->type,
-                    'password' => bcrypt(Str::random(16)),
+                    'name' => $name,
+                    'email' => $email,
+                    'type' => (int)$request->type,
+                    'password' => Hash::make(Str::random(16)),
                 ]
             );
 
             return response()->json($user->load('roles'));
 
         } catch (\Exception $e) {
-            return response()->json(['message' => 'LDAP Error: ' . $e->getMessage()], 500);
+            return response()->json([
+                'message' => 'LDAP Sync Failed',
+                'error' => $e->getMessage()
+            ], 500);
         }
     }
 
-    public function syncRoleServices(Request $request, Role $role)
+    /**
+     * --- User Management ---
+     */
+    public function indexUsers() 
     {
-        $request->validate(['services' => 'present|array']);
-        $role->services()->sync($request->services);
-        return response()->json(['message' => 'Role permissions updated', 'role' => $role->load('services')]);
+        return response()->json(User::with('roles')->get());
     }
 
     public function syncUserRoles(Request $request, User $user)
     {
+        Gate::authorize('manage-system');
         $request->validate(['roles' => 'present|array']);
+        
         $user->roles()->sync($request->roles);
-        return response()->json(['message' => 'User roles updated successfully']);
+        return response()->json(['message' => 'User roles updated successfully', 'user' => $user->load('roles')]);
     }
 
-    // --- Service CRUD ---
+    /**
+     * --- Service (Tool) Registry CRUD ---
+     */
+    public function indexServices()
+    {
+        // Vital for the Access Matrix: Eager load roles
+        return response()->json(Service::with('roles')->get());
+    }
+
     public function storeService(Request $request)
     {
-        // 1. Validate
+        Gate::authorize('manage-system');
+
         $data = $request->validate([
             'name' => 'required|string',
             'slug' => 'required|string|unique:services,slug',
             'url'  => 'required|url',
             'category' => 'nullable|string',
             'icon' => 'nullable|string',
+            'image' => 'nullable|image|mimes:jpeg,png,jpg|max:2048',
+            'roles' => 'array'
         ]);
 
-        // 2. Create using the validated $data array
+        if ($request->hasFile('image')) {
+            $data['image_path'] = $request->file('image')->store('services', 'public');
+        }
+
         $service = Service::create($data); 
 
-        return response()->json($service, 201);
+        // Sync roles if provided
+        if ($request->has('roles')) {
+            $service->roles()->sync($request->roles);
+        }
+
+        return response()->json($service->load('roles'), 201);
     }
 
-    public function updateService(Request $request, Service $service) {
+    public function updateService(Request $request, $id)
+    {
         Gate::authorize('manage-system');
-        $data = $request->validate([
-            'name' => 'required|unique:services,name,' . $service->id,
-            'slug' => 'required|unique:services,slug,' . $service->id,
-            'url' => 'required|url',
-            'category' => 'nullable|string',
-            'icon' => 'nullable|string'
+        $service = Service::findOrFail($id);
+
+        $request->validate([
+            'name'     => 'required|string',
+            'slug'     => 'required|string|unique:services,slug,' . $id,
+            'url'      => 'required|url',
+            'category' => 'required|string',
+            'icon'     => 'nullable|string',
+            'image'    => 'nullable|image|mimes:jpg,jpeg,png|max:2048',
+            'roles'    => 'array' 
         ]);
-        $service->update($data);
-        return response()->json($service);
+
+        // Handle Image Upload
+        if ($request->hasFile('image')) {
+            if ($service->image_path) {
+                Storage::disk('public')->delete($service->image_path);
+            }
+            $service->image_path = $request->file('image')->store('services', 'public');
+        }
+
+        // Update basic fields
+        $service->update($request->only(['name', 'slug', 'url', 'category', 'icon']));
+
+        // Sync Roles (Keeps the Access Matrix synced)
+        if ($request->has('roles')) {
+            $service->roles()->sync($request->roles);
+        }
+
+        return response()->json($service->load('roles'));
     }
 
-    public function destroyService(Service $service) {
+    public function destroyService(Service $service) 
+    {
         Gate::authorize('manage-system');
+        
+        if ($service->image_path) {
+            Storage::disk('public')->delete($service->image_path);
+        }
+        
         $service->delete();
-        return response()->json(['message' => "Deleted successfully."]);
+        return response()->json(['message' => "Service deleted successfully."]);
     }
 
-    // --- Role Management ---
-    public function getAllRoles() {
+    /**
+     * --- Role Management ---
+     */
+    public function getAllRoles() 
+    {
+        // Eager load services for the matrix view
         return response()->json(Role::with('services')->get());
     }
 
@@ -117,21 +177,18 @@ class ManagementController extends Controller
             'name' => 'required|string|unique:roles,name|max:50',
         ]);
 
-        // Force lowercase for consistency (e.g., "Admin" -> "admin")
         $data['name'] = strtolower($data['name']);
-
         $role = Role::create($data);
 
-        return response()->json($role);
+        return response()->json($role, 201);
     }
 
     public function updateRole(Request $request, Role $role)
     {
         Gate::authorize('manage-system');
 
-        // Protect the core 'admin' role from being renamed easily
         if ($role->name === 'admin') {
-            return response()->json(['message' => 'The core admin role cannot be renamed.'], 403);
+            return response()->json(['message' => 'The core admin role cannot be modified.'], 403);
         }
 
         $data = $request->validate([
@@ -144,24 +201,24 @@ class ManagementController extends Controller
         return response()->json($role);
     }
 
-    public function indexUsers() {
-        return response()->json(User::with('roles')->get());
-    }
-
-    public function syncServiceRoles(Request $request, Service $service)
+    /**
+     * This method handles the logic specifically for the Matrix toggle
+     */
+    public function syncRoleServices(Request $request, $roleId)
     {
         Gate::authorize('manage-system');
-        
+
         $request->validate([
-            'roles' => 'array',
-            'roles.*' => 'exists:roles,id'
+            'service_ids' => 'array',
+            'service_ids.*' => 'exists:services,id'
         ]);
 
-        // This updates the relationship in the pivot table
-        $service->roles()->sync($request->roles);
+        $role = Role::findOrFail($roleId);
+        $role->services()->sync($request->service_ids ?? []);
 
-        return response()->json(['message' => 'Role mapping updated']);
+        return response()->json([
+            'message' => 'Permissions updated',
+            'role' => $role->load('services')
+        ]);
     }
-
-
 }

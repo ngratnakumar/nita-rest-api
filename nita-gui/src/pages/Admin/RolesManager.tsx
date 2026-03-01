@@ -40,6 +40,34 @@ export default function RolesManager() {
         fetchRoles();
     };
 
+    const togglePermission = async (role: Role, serviceId: number) => {
+        // 1. Calculate the new array of service IDs
+        const currentServiceIds = role.services?.map(s => s.id) || [];
+        let newServiceIds;
+
+        if (currentServiceIds.includes(serviceId)) {
+            // Remove service if it was already there
+            newServiceIds = currentServiceIds.filter(id => id !== serviceId);
+        } else {
+            // Add service if it wasn't there
+            newServiceIds = [...currentServiceIds, serviceId];
+        }
+
+        try {
+            // 2. Send the FULL array to the sync endpoint
+            await api.put(`/admin/roles/${role.id}/services`, {
+                service_ids: newServiceIds
+            });
+
+            // 3. Refresh data to see the checkbox update
+            fetchData();
+        } catch (err) {
+            console.error("Failed to sync permissions", err);
+            alert("Update failed. Check console.");
+        }
+    };
+
+
     return (
         <div className="max-w-4xl mx-auto p-6">
             <div className="flex justify-between items-center mb-8">

@@ -1,5 +1,15 @@
-import { User, Shield, LogOut, LayoutDashboard, Users, Server, Key, ShieldCheck } from 'lucide-react';
-import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { 
+    User, 
+    LogOut, 
+    LayoutDashboard, 
+    Users, 
+    Server, 
+    Key, 
+    Download, 
+    Image as ImageIcon 
+} from 'lucide-react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import api from '../api/axios';
 
 export default function Sidebar() {
     const location = useLocation();
@@ -8,7 +18,7 @@ export default function Sidebar() {
     // Parse user from storage
     const user = JSON.parse(localStorage.getItem('user') || '{}');
     
-    // The logic check
+    // Role check
     const isAdmin = Array.isArray(user.roles) && user.roles.some((r: any) => r.name === 'admin');
     
     const handleLogout = () => {
@@ -16,19 +26,54 @@ export default function Sidebar() {
         navigate('/login');
     };
 
+    const handleExportAllData = async () => {
+        try {
+            const [usersRes, rolesRes, servicesRes] = await Promise.all([
+                api.get('/admin/users'),
+                api.get('/roles'),
+                api.get('/services')
+            ]);
+
+            const backupData = {
+                export_date: new Date().toISOString(),
+                users: usersRes.data,
+                roles: rolesRes.data,
+                services: servicesRes.data
+            };
+
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(backupData, null, 2));
+            const downloadAnchorNode = document.createElement('a');
+            downloadAnchorNode.setAttribute("href", dataStr);
+            downloadAnchorNode.setAttribute("download", `nita_backup_${new Date().toISOString().split('T')[0]}.json`);
+            document.body.appendChild(downloadAnchorNode);
+            downloadAnchorNode.click();
+            downloadAnchorNode.remove();
+        } catch (err) {
+            alert("Export failed. Please check your connection.");
+        }
+    };
+
+    // Helper function to handle active link styling
+    const getLinkClass = (path: string) => 
+        `flex items-center gap-3 px-3 py-2 rounded-lg transition-colors hover:bg-slate-800 ${
+            location.pathname === path ? 'bg-blue-600 text-white' : 'text-slate-400'
+        }`;
+
     return (
         <div className="w-64 h-screen bg-slate-900 text-slate-300 flex flex-col fixed left-0 top-0 border-r border-slate-800">
-            {/* User Profile & Role Badge */}
+            
+            {/* User Profile Header */}
             <div className="p-6 border-b border-slate-800 bg-slate-900/50">
-                <div className="flex items-center gap-3 mb-3">
+                <div className="flex items-center gap-3">
                     <div className="p-2 bg-blue-600/20 rounded-lg">
                         <User className="text-blue-400" size={20} />
                     </div>
                     <div className="overflow-hidden">
                         <p className="text-sm font-bold text-white truncate">{user.username || 'Guest'}</p>
-                        {/* THE ROLE BADGE */}
-                        <span className={`text-[10px] uppercase px-2 py-0.5 rounded-full font-bold tracking-wider ${
-                            isAdmin ? 'bg-red-500/20 text-red-400 border border-red-500/50' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/50'
+                        <span className={`text-[10px] uppercase px-2 py-0.5 rounded-full font-black border ${
+                            isAdmin 
+                                ? 'bg-red-500/10 text-red-400 border-red-500/30' 
+                                : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
                         }`}>
                             {isAdmin ? 'System Admin' : 'Staff User'}
                         </span>
@@ -36,42 +81,57 @@ export default function Sidebar() {
                 </div>
             </div>
 
-            {/* Navigation */}
-            <nav className="flex-1 p-4 space-y-1">
-                <p className="text-[10px] font-bold text-slate-500 uppercase px-3 mb-2 tracking-widest">Main Menu</p>
-                <Link to="/dashboard" className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-colors hover:bg-slate-800 ${location.pathname === '/dashboard' ? 'bg-blue-600 text-white' : ''}`}>
+            {/* Navigation Section */}
+            <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
+                <p className="text-[10px] font-black text-slate-500 uppercase px-3 mb-2 tracking-[0.2em]">Main Menu</p>
+                
+                <Link to="/dashboard" className={getLinkClass('/dashboard')}>
                     <LayoutDashboard size={18} />
-                    <span className="text-sm">My Services</span>
+                    <span className="text-sm font-medium">My Services</span>
                 </Link>
-                <NavLink to="/admin/roles-config" className={({ isActive }) => `flex items-center gap-2 p-2 rounded ${isActive ? 'bg-blue-600 text-white' : 'text-gray-600'}`}>
-                <ShieldCheck size={20} />
-                    <span>Role Settings</span>
-                </NavLink>
 
-                {/* ADMIN TOOLS - Only rendered if isAdmin is true */}
                 {isAdmin && (
-                    <div className="mt-8">
-                        <p className="text-[10px] font-bold text-slate-500 uppercase px-3 mb-2 tracking-widest">Management</p>
-                        <Link to="/admin/users" className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-colors hover:bg-slate-800 ${location.pathname === '/admin/users' ? 'bg-blue-600 text-white' : ''}`}>
+                    <div className="pt-6 space-y-1">
+                        <p className="text-[10px] font-black text-slate-500 uppercase px-3 mb-2 tracking-[0.2em]">Management</p>
+                        
+                        <Link to="/admin/users" className={getLinkClass('/admin/users')}>
                             <Users size={18} />
-                            <span className="text-sm">Users & Roles</span>
+                            <span className="text-sm font-medium">Users & Roles</span>
                         </Link>
-                        <Link to="/admin/services" className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-colors hover:bg-slate-800 ${location.pathname === '/admin/services' ? 'bg-blue-600 text-white' : ''}`}>
+
+                        <Link to="/admin/services" className={getLinkClass('/admin/services')}>
                             <Server size={18} />
-                            <span className="text-sm">Service Registry</span>
+                            <span className="text-sm font-medium">Service Registry</span>
                         </Link>
-                        <Link to="/admin/roles" className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-colors hover:bg-slate-800 ${location.pathname === '/admin/roles' ? 'bg-blue-600 text-white' : ''}`}>
+
+                        <Link to="/admin/roles" className={getLinkClass('/admin/roles')}>
                             <Key size={18} />
-                            <span className="text-sm">Access Matrix</span>
+                            <span className="text-sm font-medium">Access Matrix</span>
                         </Link>
+                        <Link to="/admin/icons" className={getLinkClass('/admin/icons')}>
+                            <ImageIcon size={18} />
+                            <span className="text-sm font-medium">Icon Library</span>
+                        </Link>
+                        <div className="pt-4 mt-4 border-t border-slate-800/50">
+                            <button 
+                                onClick={handleExportAllData}
+                                className="w-full flex items-center gap-3 px-3 py-2 text-emerald-500 hover:bg-emerald-500/10 rounded-lg transition-colors"
+                            >
+                                <Download size={18} />
+                                <span className="text-sm font-medium">Export Backup</span>
+                            </button>
+                        </div>
                     </div>
                 )}
             </nav>
 
-            {/* Logout */}
-            <button onClick={handleLogout} className="p-4 flex items-center gap-3 text-slate-400 hover:text-red-400 hover:bg-red-400/10 transition-all border-t border-slate-800">
+            {/* Sign Out Button */}
+            <button 
+                onClick={handleLogout} 
+                className="p-4 flex items-center gap-3 text-slate-400 hover:text-red-400 hover:bg-red-400/10 transition-all border-t border-slate-800"
+            >
                 <LogOut size={18} />
-                <span className="text-sm font-medium">Sign Out</span>
+                <span className="text-sm font-bold">Sign Out</span>
             </button>
         </div>
     );
