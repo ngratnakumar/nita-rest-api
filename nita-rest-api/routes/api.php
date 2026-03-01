@@ -91,6 +91,9 @@ Route::middleware('auth:sanctum')->group(function () {
         
         Route::delete('/services/{service}', [ManagementController::class, 'destroyService']);
         
+        // Service Maintenance Status
+        Route::patch('/services/{service}/maintenance', [ManagementController::class, 'toggleMaintenanceStatus']);
+        
         // The Sync Route used by Services.tsx Form
         Route::put('/services/{service}/roles', [ManagementController::class, 'syncServiceRoles']);
 

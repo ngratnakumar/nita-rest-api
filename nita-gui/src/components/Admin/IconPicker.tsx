@@ -12,7 +12,7 @@ export default function IconPicker({ selectedIcon, onSelect }: IconPickerProps) 
     const [loading, setLoading] = useState(true);
 
     // Get the base URL for images from your env or use a fallback
-    const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+    const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:8000/api').replace(/\/?api$/, '');
 
     useEffect(() => {
         const fetchIcons = async () => {

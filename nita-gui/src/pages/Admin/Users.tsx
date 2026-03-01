@@ -1,6 +1,7 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import api from '../../api/axios';
 import { Search, Shield, UserCheck, RefreshCw, Database, AlertCircle } from 'lucide-react';
+import Pagination from '../../components/Pagination';
 
 const UsersAdmin = () => {
     const [users, setUsers] = useState<any[]>([]);
@@ -13,6 +14,8 @@ const UsersAdmin = () => {
     const [discoveredUser, setDiscoveredUser] = useState<any>(null);
     const [showConfirm, setShowConfirm] = useState(false);
     const [errorMessage, setErrorMessage] = useState('');
+    const [currentPage, setCurrentPage] = useState(1);
+    const [itemsPerPage, setItemsPerPage] = useState(10);
 
     const fetchData = useCallback(async () => {
         try {
@@ -34,6 +37,20 @@ const UsersAdmin = () => {
     useEffect(() => {
         fetchData();
     }, [fetchData]);
+
+    // Filter and paginate users
+    const filteredUsers = useMemo(() => {
+        return users.filter(user =>
+            user.name.toLowerCase().includes(listSearchTerm.toLowerCase()) ||
+            user.username.toLowerCase().includes(listSearchTerm.toLowerCase())
+        );
+    }, [users, listSearchTerm]);
+
+    const totalPages = Math.ceil(filteredUsers.length / itemsPerPage);
+    const paginatedUsers = useMemo(() => {
+        const startIndex = (currentPage - 1) * itemsPerPage;
+        return filteredUsers.slice(startIndex, startIndex + itemsPerPage);
+    }, [filteredUsers, currentPage, itemsPerPage]);
 
     const handleDiscover = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -105,8 +122,8 @@ const UsersAdmin = () => {
     };
 
     if (initialLoad) return (
-        <div className="flex flex-col items-center justify-center min-h-[400px] text-slate-500 gap-4">
-            <RefreshCw className="animate-spin text-blue-500" size={32} />
+        <div className="flex flex-col items-center justify-center min-h-[400px] text-slate-500 dark:text-slate-400 gap-4">
+            <RefreshCw className="animate-spin text-blue-500 dark:text-blue-400" size={32} />
             <p className="font-medium">Loading NCRA User Directory...</p>
         </div>
     );
@@ -115,38 +132,38 @@ const UsersAdmin = () => {
         <div className="p-6 max-w-7xl mx-auto">
             <header className="mb-8 flex justify-between items-end">
                 <div>
-                    <h2 className="text-2xl font-bold text-slate-800">User Management</h2>
-                    <p className="text-slate-500">Discover LDAP users and assign NITA system roles.</p>
+                    <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-100">User Management</h2>
+                    <p className="text-slate-500 dark:text-slate-400">Discover LDAP users and assign NITA system roles. ({filteredUsers.length} / {users.length} total)</p>
                 </div>
-                <div className="text-xs font-mono text-slate-600 bg-slate-100 px-3 py-1.5 rounded">
+                <div className="text-xs font-mono text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-3 py-1.5 rounded">
                     Synced Users: <strong>{users.length}</strong>
                 </div>
             </header>
             
             {/* ERROR MESSAGE */}
             {errorMessage && (
-                <div className="mb-6 p-4 border border-red-200 bg-red-50 rounded-lg flex items-start gap-3">
-                    <AlertCircle size={20} className="text-red-600 flex-shrink-0 mt-0.5" />
+                <div className="mb-6 p-4 border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 rounded-lg flex items-start gap-3">
+                    <AlertCircle size={20} className="text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
                     <div>
-                        <div className="font-semibold text-red-900">Error</div>
-                        <div className="text-sm text-red-700 mt-0.5">{errorMessage}</div>
+                        <div className="font-semibold text-red-900 dark:text-red-300">Error</div>
+                        <div className="text-sm text-red-700 dark:text-red-400 mt-0.5">{errorMessage}</div>
                     </div>
                 </div>
             )}
             
             {/* DISCOVERY CARD */}
-            <section className="mb-10 bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-                <div className="flex items-center gap-2 mb-4 text-blue-600">
+            <section className="mb-10 bg-white dark:bg-slate-900 p-6 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800">
+                <div className="flex items-center gap-2 mb-4 text-blue-600 dark:text-blue-400">
                     <Search size={18} />
                     <h3 className="text-sm font-bold uppercase tracking-wider">Discover LDAP User</h3>
                 </div>
-                <p className="text-xs text-slate-600 mb-4">Search for a user in OpenLDAP or FreeIPA by their username. We'll automatically check both directories.</p>
+                <p className="text-xs text-slate-600 dark:text-slate-400 mb-4">Search for a user in OpenLDAP or FreeIPA by their username. We'll automatically check both directories.</p>
                 <form onSubmit={handleDiscover} className="flex flex-col md:flex-row gap-3">
                     <div className="flex-1">
                         <input 
                             type="text" 
                             placeholder="Enter username (e.g., meshram)" 
-                            className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                            className="w-full px-4 py-2.5 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder-slate-500 dark:placeholder-slate-400 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 outline-none transition-all"
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                             disabled={loading}
@@ -155,7 +172,7 @@ const UsersAdmin = () => {
                     </div>
                     <button 
                         disabled={loading || !searchTerm.trim()}
-                        className="bg-blue-600 text-white px-6 py-2.5 rounded-lg font-bold hover:bg-blue-700 disabled:bg-blue-300 disabled:cursor-not-allowed transition-all flex items-center gap-2 justify-center whitespace-nowrap"
+                        className="bg-blue-600 dark:bg-blue-700 text-white px-6 py-2.5 rounded-lg font-bold hover:bg-blue-700 dark:hover:bg-blue-600 disabled:bg-blue-300 dark:disabled:bg-slate-700 disabled:cursor-not-allowed transition-all flex items-center gap-2 justify-center whitespace-nowrap"
                     >
                         {loading ? <RefreshCw className="animate-spin" size={18} /> : <Search size={18} />}
                         {loading ? 'Searching...' : 'Search'}
@@ -193,48 +210,54 @@ const UsersAdmin = () => {
             </section>
 
             {/* USERS TABLE */}
-            <div className="bg-white shadow-sm border border-slate-200 rounded-xl overflow-hidden">
-                <div className="p-4 border-b border-slate-200 bg-slate-50">
+            <div className="bg-white dark:bg-slate-900 shadow-sm border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
+                <div className="p-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800">
                     <input
                         type="text"
                         placeholder="Filter users by name or username..."
-                        className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                        className="w-full px-4 py-2 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 placeholder-slate-500 dark:placeholder-slate-400 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 outline-none transition-all"
                         value={listSearchTerm}
-                        onChange={(e) => setListSearchTerm(e.target.value)}
+                        onChange={(e) => {
+                            setListSearchTerm(e.target.value);
+                            setCurrentPage(1);
+                        }}
                     />
                 </div>
                 <table className="w-full text-left border-collapse">
                     <thead>
-                        <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 text-xs uppercase font-bold">
+                        <tr className="bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 text-xs uppercase font-bold">
                             <th className="p-4 w-1/3">User Identity</th>
                             <th className="p-4 w-1/6">Source</th>
                             <th className="p-4 flex-1">Assigned Roles</th>
                         </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100">
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                         {users.length === 0 ? (
                             <tr>
                                 <td colSpan={3} className="p-12 text-center">
-                                    <Database className="mx-auto text-slate-200 mb-3" size={48} />
-                                    <p className="text-slate-400 font-medium">No users synced yet.</p>
-                                    <p className="text-slate-400 text-sm mt-1">Use the discovery form above to add LDAP users.</p>
+                                    <Database className="mx-auto text-slate-200 dark:text-slate-700 mb-3" size={48} />
+                                    <p className="text-slate-400 dark:text-slate-400 font-medium">No users synced yet.</p>
+                                    <p className="text-slate-400 dark:text-slate-400 text-sm mt-1">Use the discovery form above to add LDAP users.</p>
                                 </td>
                             </tr>
-                        ) : users.filter(user => 
-                            user.name.toLowerCase().includes(listSearchTerm.toLowerCase()) ||
-                            user.username.toLowerCase().includes(listSearchTerm.toLowerCase())
-                        ).map(user => (
-                            <tr key={user.id} className={`transition-colors ${updatingId === user.id ? 'bg-blue-50/40' : 'hover:bg-slate-50/50'}`}>
+                        ) : paginatedUsers.length === 0 ? (
+                            <tr>
+                                <td colSpan={3} className="p-12 text-center">
+                                    <p className="text-slate-400 dark:text-slate-400 font-medium">No users match your search.</p>
+                                </td>
+                            </tr>
+                        ) : paginatedUsers.map(user => (
+                            <tr key={user.id} className={`transition-colors ${updatingId === user.id ? 'bg-blue-50/40 dark:bg-blue-900/20' : 'hover:bg-slate-50/50 dark:hover:bg-slate-800/50'}`}>
                                 <td className="p-4">
-                                    <div className="font-semibold text-slate-900">{user.name}</div>
-                                    <div className="text-xs text-slate-500 font-mono mt-0.5">@{user.username}</div>
+                                    <div className="font-semibold text-slate-900 dark:text-slate-100">{user.name}</div>
+                                    <div className="text-xs text-slate-500 dark:text-slate-400 font-mono mt-0.5">@{user.username}</div>
                                 </td>
                                 <td className="p-4">
                                     {getProviderBadge(user.type)}
                                 </td>
                                 <td className="p-4">
                                     {!roles || roles.length === 0 ? (
-                                        <span className="text-slate-400 text-sm">No roles available</span>
+                                        <span className="text-slate-400 dark:text-slate-500 text-sm">No roles available</span>
                                     ) : (
                                         <div className="flex flex-wrap gap-2">
                                             {roles.map(role => {
@@ -252,8 +275,8 @@ const UsersAdmin = () => {
                                                         }}
                                                         className={`px-3 py-1.5 rounded text-xs font-semibold transition-all flex items-center gap-1.5 border ${
                                                             isActive 
-                                                            ? 'bg-blue-600 border-blue-600 text-white shadow-sm' 
-                                                            : 'bg-white border-slate-200 text-slate-600 hover:border-slate-400 hover:bg-slate-50'
+                                                            ? 'bg-blue-600 dark:bg-blue-700 border-blue-600 dark:border-blue-700 text-white shadow-sm' 
+                                                            : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:border-slate-400 dark:hover:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700'
                                                         } ${updatingId === user.id ? 'opacity-50 cursor-not-allowed' : ''}`}
                                                     >
                                                         <Shield size={12} />
@@ -269,6 +292,23 @@ const UsersAdmin = () => {
                     </tbody>
                 </table>
             </div>
+
+            {/* Pagination */}
+            {users.length > 0 && (
+                <div className="mt-6">
+                    <Pagination
+                        currentPage={currentPage}
+                        totalPages={totalPages}
+                        itemsPerPage={itemsPerPage}
+                        onPageChange={setCurrentPage}
+                        onItemsPerPageChange={(count) => {
+                            setItemsPerPage(count);
+                            setCurrentPage(1);
+                        }}
+                        totalItems={filteredUsers.length}
+                    />
+                </div>
+            )}
         </div>
     );
 };

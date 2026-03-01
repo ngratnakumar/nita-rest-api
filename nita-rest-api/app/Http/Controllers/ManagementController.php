@@ -161,6 +161,23 @@ class ManagementController extends Controller
         return response()->json(['message' => "Service deleted successfully."]);
     }
 
+    public function toggleMaintenanceStatus(Request $request, Service $service)
+    {
+        Gate::authorize('manage-system');
+
+        $data = $request->validate([
+            'is_maintenance' => 'required|boolean',
+            'maintenance_message' => 'nullable|string|max:500',
+        ]);
+
+        $service->update($data);
+
+        return response()->json([
+            'message' => $data['is_maintenance'] ? 'Service marked as under maintenance' : 'Service marked as operational',
+            'service' => $service
+        ]);
+    }
+
     /**
      * --- Role Management ---
      */

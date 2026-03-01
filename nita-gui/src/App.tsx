@@ -1,4 +1,5 @@
 import { BrowserRouter as Router, Routes, Route, Navigate, Outlet } from 'react-router-dom';
+import { useState, useEffect } from 'react';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import ProfileSettings from './pages/ProfileSettings';
@@ -12,15 +13,27 @@ import Sidebar from './components/Sidebar';
 // 1. Unified Layout Wrapper
 const ProtectedLayout = () => {
   const isAuthenticated = !!localStorage.getItem('token');
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+
+  // Auto-close sidebar on mobile
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth >= 1024) {
+        setSidebarOpen(true);
+      }
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
   
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
 
   return (
-    <div className="flex bg-slate-50 min-h-screen">
-      <Sidebar />
-      <main className="flex-1 ml-64 p-8">
+    <div className={`flex bg-slate-50 dark:bg-slate-950 min-h-screen transition-colors duration-200`}>
+      <Sidebar isOpen={sidebarOpen} onToggle={() => setSidebarOpen(!sidebarOpen)} />
+      <main className="flex-1 transition-all duration-300 lg:ml-64 p-4 lg:p-8">
         <Outlet /> {/* This renders the specific page component */}
       </main>
     </div>

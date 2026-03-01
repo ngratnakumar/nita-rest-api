@@ -1,8 +1,8 @@
 import axios from 'axios';
 
-// LAN configuration: Server at 192.168.110.2:8000
+// Use environment variable for API URL (from .env)
 const api = axios.create({
-  baseURL: 'http://192.168.110.2:8000/api',
+  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8000/api',
   headers: {
     'Content-Type': 'application/json',
     'Accept': 'application/json',
