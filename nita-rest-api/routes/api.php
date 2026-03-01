@@ -101,5 +101,10 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/logs', function () {
             return AuditLog::with('user:id,username,name')->latest()->paginate(50);
         });
+
+        Route::get('/categories', [ManagementController::class, 'indexCategories']);
+        Route::post('/categories', [ManagementController::class, 'storeCategory']);
+        Route::delete('/categories/{category}', [ManagementController::class, 'destroyCategory']);
+
     });
 });

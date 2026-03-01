@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import api from '../../api/axios';
 import { Activity, Clock, User as UserIcon, Info } from 'lucide-react';
 

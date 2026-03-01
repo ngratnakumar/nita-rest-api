@@ -17,6 +17,7 @@ return [
         'http://127.0.0.1:5173',
         'https://192.168.110.2',
         'https://192.168.110.2:5173',
+        'https://ww2.ncra.tifr.res.in',
     ],
 
     'allowed_origins_patterns' => [],

@@ -1,10 +1,12 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import api from '../../api/axios';
-import { Trash2, Upload, Loader2, Image as ImageIcon, CheckCircle } from 'lucide-react';
+import { Trash2, Upload, Loader2, Image as ImageIcon } from 'lucide-react';
 
 export default function IconManager() {
     const [icons, setIcons] = useState<string[]>([]);
     const [uploading, setUploading] = useState(false);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    
     const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
     const fetchIcons = async () => {
@@ -16,45 +18,42 @@ export default function IconManager() {
         }
     };
 
-    useEffect(() => { fetchIcons(); }, []);
+    useEffect(() => { 
+        fetchIcons(); 
+    }, []);
 
     const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
 
-    const formData = new FormData();
+        const formData = new FormData();
         formData.append('file', file);
 
-    setUploading(true);
+        setUploading(true);
         try {
-            const response = await api.post('/admin/media/upload', formData, {
+            await api.post('/admin/media/upload', formData, {
                 headers: { 'Content-Type': 'multipart/form-data' }
             });
-            console.log("Server Response:", response.data);
-            fetchIcons(); // Refresh the list
+            
+            // Success logic
+            fetchIcons(); 
+            if (fileInputRef.current) fileInputRef.current.value = ''; // Reset input
         } catch (err: any) {
-            // Detailed error alerting
             const errorMsg = err.response?.data?.message || err.message;
             const status = err.response?.status;
             alert(`Upload Failed (${status}): ${errorMsg}`);
-            console.error("Upload Error:", err.response);
         } finally {
             setUploading(false);
         }
     };
 
     const handleDelete = async (name: string) => {
-        // 1. Confirm with user
         if (!confirm(`Permanently delete ${name}? This may break services using this icon.`)) return;
 
         try {
-            // 2. Send delete request with the filename
             await api.delete(`/admin/media/icons/${name}`);
-            
-            // 3. Update local state so it vanishes from UI immediately
+            // Optimistic UI update
             setIcons(prev => prev.filter(icon => icon !== name));
-            
-            alert("Icon deleted.");
         } catch (err: any) {
             console.error("Delete error:", err.response);
             alert(err.response?.data?.message || "Failed to delete icon.");
@@ -73,7 +72,14 @@ export default function IconManager() {
                     <label className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl flex items-center gap-2 cursor-pointer transition-all shadow-lg shadow-blue-200 font-bold text-sm">
                         {uploading ? <Loader2 className="animate-spin" size={18}/> : <Upload size={18}/>}
                         {uploading ? 'Uploading...' : 'Add New Icon'}
-                        <input type="file" className="hidden" onChange={handleUpload} disabled={uploading} accept="image/*" />
+                        <input 
+                            type="file" 
+                            className="hidden" 
+                            onChange={handleUpload} 
+                            disabled={uploading} 
+                            accept="image/*" 
+                            ref={fileInputRef}
+                        />
                     </label>
                 </div>
 
@@ -85,14 +91,16 @@ export default function IconManager() {
                                     src={`${API_URL}/storage/icons/${icon}`} 
                                     className="max-w-full max-h-full object-contain" 
                                     alt={icon} 
-                                    onError={(e) => { e.currentTarget.src = "https://via.placeholder.com/100?text=Error"; }}
+                                    onError={(e) => { 
+                                        e.currentTarget.src = `https://ui-avatars.com/api/?name=${icon}&background=f1f5f9&color=64748b`; 
+                                    }}
                                 />
                             </div>
-                            <p className="text-[10px] text-slate-400 truncate text-center font-mono bg-slate-50 py-1 rounded">{icon}</p>
+                            <p className="text-[10px] text-slate-400 truncate text-center font-mono bg-slate-50 py-1 rounded px-2">{icon}</p>
                             
                             <button 
                                 onClick={() => handleDelete(icon)}
-                                className="absolute -top-2 -right-2 bg-red-500 text-white p-2 rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-lg hover:bg-red-600"
+                                className="absolute -top-2 -right-2 bg-red-500 text-white p-2 rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-lg hover:bg-red-600 active:scale-90"
                             >
                                 <Trash2 size={14} />
                             </button>

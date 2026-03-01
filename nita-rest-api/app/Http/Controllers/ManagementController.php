@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use LdapRecord\Container;
+use App\Models\Category;
 
 class ManagementController extends Controller
 {
@@ -221,4 +222,28 @@ class ManagementController extends Controller
             'role' => $role->load('services')
         ]);
     }
+
+
+    // --- Category CRUD ---
+    public function indexCategories() {
+        return response()->json(Category::orderBy('name')->get());
+    }
+
+    public function storeCategory(Request $request) {
+        Gate::authorize('manage-system');
+        $data = $request->validate(['name' => 'required|string|unique:categories,name|max:30']);
+        return response()->json(Category::create($data), 201);
+    }
+
+    public function destroyCategory(Category $category) {
+        Gate::authorize('manage-system');
+        // Security check: Don't delete if services are using this category name
+        if (\App\Models\Service::where('category', $category->name)->exists()) {
+            return response()->json(['message' => 'Cannot delete. Services are currently assigned to this category.'], 422);
+        }
+        $category->delete();
+        return response()->json(['message' => 'Category deleted.']);
+    }
+
+
 }
