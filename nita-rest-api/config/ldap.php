@@ -46,7 +46,7 @@ return [
             'username' => env('IPA_USERNAME'), 
             'password' => env('IPA_PASSWORD'), 
             'port' => env('IPA_PORT', 389),
-            'base_dn' => env('IPA_BASE_DN'),
+            'base_dn' => env('IPA_BASE_DN', 'cn=users,cn=accounts,dc=ncra,dc=tifr,dc=res,dc=in'),
             'timeout' => env('IPA_TIMEOUT', 5),
             'use_ssl' => env('IPA_SSL', false),
             'use_tls' => env('IPA_TLS', false),

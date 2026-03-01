@@ -24,31 +24,40 @@ class LDAPController extends Controller
 
         $username = trim($request->input('username'));
         
+        // Validate username format
+        if (!preg_match('/^[a-zA-Z0-9._\-]+$/', $username)) {
+            return response()->json([
+                'message' => "Invalid username format. Use only letters, numbers, dots, hyphens, and underscores.",
+                'username' => $username
+            ], 400);
+        }
+        
         try {
             // Try OpenLDAP first
-            Log::info("Searching for user: {$username} in OpenLDAP");
+            Log::info("=== LDAP SEARCH START === Searching for user: {$username} in OpenLDAP");
             $user = $this->searchLdapDirectory('openldap', $username);
             if ($user) {
-                Log::info("User {$username} found in OpenLDAP");
+                Log::info("✓ User {$username} found in OpenLDAP");
                 return response()->json(array_merge($user, ['provider' => 'OpenLDAP']));
             }
+            Log::info("✗ User {$username} not found in OpenLDAP, trying FreeIPA");
 
             // Try FreeIPA next
             Log::info("Searching for user: {$username} in FreeIPA");
             $user = $this->searchLdapDirectory('freeipa', $username);
             if ($user) {
-                Log::info("User {$username} found in FreeIPA");
+                Log::info("✓ User {$username} found in FreeIPA");
                 return response()->json(array_merge($user, ['provider' => 'FreeIPA']));
             }
 
-            Log::warning("User {$username} not found in any directory");
+            Log::warning("✗ User {$username} not found in any directory");
             return response()->json([
                 'message' => "User '{$username}' not found in OpenLDAP or FreeIPA. Please check the username.",
                 'username' => $username
             ], 404);
 
         } catch (Exception $e) {
-            Log::error('LDAP Discovery error: ' . $e->getMessage(), ['exception' => $e]);
+            Log::error('LDAP Discovery error: ' . $e->getMessage(), ['exception' => $e->getTraceAsString()]);
             return response()->json([
                 'message' => 'LDAP/FreeIPA directory connection failed. Please try again later.',
                 'debug' => config('app.debug') ? $e->getMessage() : null
@@ -58,34 +67,81 @@ class LDAPController extends Controller
 
     /**
      * Search a specific LDAP directory for a user
+     * Handles both object and array responses from LDAP queries
      */
     private function searchLdapDirectory($connectionName, $username)
     {
         try {
+            Log::info("Connecting to {$connectionName} LDAP directory");
             $connection = Container::getConnection($connectionName);
             
             // Query for the user with uid attribute
-            $ldapUser = $connection->query()
+            Log::debug("Executing LDAP query for uid={$username} in {$connectionName}");
+            $results = $connection->query()
                 ->where('uid', '=', $username)
-                ->first();
+                ->get();
 
-            if (!$ldapUser) {
-                Log::debug("User not found in {$connectionName} with uid={$username}");
+            Log::info("LDAP query returned " . count($results) . " result(s) for {$connectionName}");
+
+            if (empty($results) || count($results) === 0) {
+                Log::debug("No results found for user: {$username} in {$connectionName}");
                 return null;
             }
 
-            // Extract user information from LDAP
-            $userData = [
-                'username' => $ldapUser->getFirstAttribute('uid') ?? $username,
-                'name' => $ldapUser->getFirstAttribute('cn') ?? $ldapUser->getFirstAttribute('displayname') ?? $username,
-                'email' => $ldapUser->getFirstAttribute('mail') ?? $ldapUser->getFirstAttribute('mailalternateaddress') ?? "{$username}@ncra.tifr.res.in",
-            ];
+            // Get the first result
+            $ldapUser = $results[0];
+            Log::debug("First LDAP result type: " . gettype($ldapUser), ['result_keys' => is_array($ldapUser) ? array_keys($ldapUser) : 'object']);
 
-            Log::debug("User data extracted from {$connectionName}", $userData);
+            // Handle edge case where result might be an array instead of object
+            if (is_array($ldapUser)) {
+                Log::info("LDAP result is array in {$connectionName}, extracting attributes from array format");
+                
+                // Handle LDAP array format where values are typically in indexed arrays
+                $userData = [
+                    'username' => isset($ldapUser['uid']) 
+                        ? (is_array($ldapUser['uid']) ? $ldapUser['uid'][0] : $ldapUser['uid'])
+                        : $username,
+                    'name' => isset($ldapUser['cn']) 
+                        ? (is_array($ldapUser['cn']) ? $ldapUser['cn'][0] : $ldapUser['cn'])
+                        : (isset($ldapUser['displayname']) 
+                            ? (is_array($ldapUser['displayname']) ? $ldapUser['displayname'][0] : $ldapUser['displayname'])
+                            : $username),
+                    'email' => isset($ldapUser['mail']) 
+                        ? (is_array($ldapUser['mail']) ? $ldapUser['mail'][0] : $ldapUser['mail'])
+                        : (isset($ldapUser['mailalternateaddress']) 
+                            ? (is_array($ldapUser['mailalternateaddress']) ? $ldapUser['mailalternateaddress'][0] : $ldapUser['mailalternateaddress'])
+                            : "{$username}@ncra.tifr.res.in"),
+                ];
+                
+                Log::debug("Extracted user data from array: " . json_encode($userData));
+            } else {
+                // Standard object handling with getFirstAttribute method
+                Log::info("LDAP result is object in {$connectionName}, using getFirstAttribute() method");
+                
+                $userData = [
+                    'username' => $ldapUser->getFirstAttribute('uid') ?? $username,
+                    'name' => $ldapUser->getFirstAttribute('cn') ?? $ldapUser->getFirstAttribute('displayname') ?? $username,
+                    'email' => $ldapUser->getFirstAttribute('mail') ?? $ldapUser->getFirstAttribute('mailalternateaddress') ?? "{$username}@ncra.tifr.res.in",
+                ];
+                
+                Log::debug("Extracted user data from object", $userData);
+            }
+
+            // Validate extracted data
+            if (empty($userData['username']) || empty($userData['name'])) {
+                Log::warning("Incomplete user data extracted from {$connectionName}", $userData);
+                return null;
+            }
+
+            Log::info("✓ Successfully extracted user '{$userData['username']}' from {$connectionName}");
             return $userData;
 
         } catch (Exception $e) {
-            Log::error("Error searching {$connectionName}: " . $e->getMessage(), ['exception' => $e]);
+            Log::error("Error searching {$connectionName}: " . $e->getMessage(), [
+                'exception' => $e->getTraceAsString(),
+                'username' => $username,
+                'connection' => $connectionName
+            ]);
             return null;
         }
     }

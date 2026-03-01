@@ -1,9 +1,8 @@
 import axios from 'axios';
 
-// For local development, use localhost:8000
-// For production on 192.168.110.2, make sure backend is running on that domain
+// LAN configuration: Server at 192.168.110.2:8000
 const api = axios.create({
-  baseURL: 'http://localhost:8000/api',  // Change to https://192.168.110.2/api for production
+  baseURL: 'http://192.168.110.2:8000/api',
   headers: {
     'Content-Type': 'application/json',
     'Accept': 'application/json',
