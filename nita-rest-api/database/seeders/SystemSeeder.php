@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Models\Role;
 use App\Models\Service;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 
 class SystemSeeder extends Seeder
 {
@@ -64,7 +65,22 @@ class SystemSeeder extends Seeder
         // Attach Admin Role to the User
         $adminUser->roles()->syncWithoutDetaching([$adminRole->id]);
 
+        // 4. Create ratnakumar as LDAP admin (if synced from LDAP, will have admin access)
+        $ratnakumarUser = User::firstOrCreate(
+            ['username' => 'ratnakumar'],
+            [
+                'name' => 'Naga Ratna Kumar Bollapragada',
+                'email' => 'ratnakumar@ncra.tifr.res.in',
+                'password' => Hash::make(\Illuminate\Support\Str::random(32)), // Random since auth via LDAP
+                'type' => 1, // Can be 1 (OpenLDAP) or 2 (FreeIPA) - doesn't matter, just a placeholder
+            ]
+        );
+
+        // Attach Admin Role to ratnakumar
+        $ratnakumarUser->roles()->syncWithoutDetaching([$adminRole->id]);
+
         $this->command->info('NITA System Seeded Successfully!');
-        $this->command->info('Login with: admin / password123');
+        $this->command->info('✓ Admin User: admin / password123');
+        $this->command->info('✓ Ratnakumar: Will authenticate via LDAP/FreeIPA (has Admin role)');
     }
 }

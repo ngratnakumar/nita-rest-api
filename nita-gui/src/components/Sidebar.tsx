@@ -6,7 +6,8 @@ import {
     Server, 
     Key, 
     Download, 
-    Image as ImageIcon 
+    Image as ImageIcon,
+    Settings
 } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import api from '../api/axios';
@@ -126,13 +127,19 @@ export default function Sidebar() {
             </nav>
 
             {/* Sign Out Button */}
-            <button 
-                onClick={handleLogout} 
-                className="p-4 flex items-center gap-3 text-slate-400 hover:text-red-400 hover:bg-red-400/10 transition-all border-t border-slate-800"
-            >
-                <LogOut size={18} />
-                <span className="text-sm font-bold">Sign Out</span>
-            </button>
+            <div className="border-t border-slate-800">
+                <Link to="/profile" className={getLinkClass('/profile') + " m-4"}>
+                    <Settings size={18} />
+                    <span className="text-sm font-medium">Profile Settings</span>
+                </Link>
+                <button 
+                    onClick={handleLogout} 
+                    className="w-full p-4 flex items-center gap-3 text-slate-400 hover:text-red-400 hover:bg-red-400/10 transition-all border-t border-slate-800"
+                >
+                    <LogOut size={18} />
+                    <span className="text-sm font-bold">Sign Out</span>
+                </button>
+            </div>
         </div>
     );
 }

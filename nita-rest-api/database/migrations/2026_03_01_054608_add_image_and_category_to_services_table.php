@@ -12,8 +12,12 @@ return new class extends Migration
     public function up()
     {
         Schema::table('services', function (Blueprint $table) {
-            $table->string('image_path')->nullable()->after('icon');
-            $table->string('category')->default('General')->after('image_path');
+            if (!Schema::hasColumn('services', 'image_path')) {
+                $table->string('image_path')->nullable()->after('icon');
+            }
+            if (!Schema::hasColumn('services', 'category')) {
+                $table->string('category')->default('General')->after('image_path');
+            }
         });
     }
 

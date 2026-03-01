@@ -1,11 +1,12 @@
 import { BrowserRouter as Router, Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
+import ProfileSettings from './pages/ProfileSettings';
 import UserManagement from './pages/Admin/Users';
 import ServiceManagement from './pages/Admin/Services';
 import RolesManagement from './pages/Admin/Roles'; 
 import RolesManager from './pages/Admin/RolesManager'; 
-import IconManager from './pages/Admin/IconManager'; // Added Import
+import IconManager from './pages/Admin/IconManager';
 import Sidebar from './components/Sidebar';
 
 // 1. Unified Layout Wrapper
@@ -44,6 +45,7 @@ function App() {
         {/* Protected Routes (Require Login) */}
         <Route element={<ProtectedLayout />}>
           <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/profile" element={<ProfileSettings />} />
 
           {/* Admin-Only Section */}
           <Route element={<AdminRoute />}>

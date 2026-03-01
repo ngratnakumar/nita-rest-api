@@ -4,6 +4,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\ManagementController;
 use App\Http\Controllers\MediaController;
+use App\Http\Controllers\LDAPController;
 use App\Models\Role;
 use App\Models\Service;
 use App\Models\AuditLog;
@@ -23,6 +24,7 @@ Route::post('/login', [AuthController::class, 'login'])->name('login');
 Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/me', [AuthController::class, 'me']);
+    Route::post('/change-password', [AuthController::class, 'changePassword']);
 
     /**
      * Dashboard Discovery
@@ -68,6 +70,8 @@ Route::middleware('auth:sanctum')->group(function () {
         // --- LDAP & User Control ---
         Route::get('/users', [ManagementController::class, 'indexUsers']);
         Route::post('/users/sync', [ManagementController::class, 'syncExternalUser']);
+        Route::post('/ldap/discover', [LDAPController::class, 'discover']);
+        Route::post('/ldap/sync', [LDAPController::class, 'sync']);
         Route::put('/users/{user}/roles', [ManagementController::class, 'syncUserRoles']);
         
         // --- Role & Matrix Management ---
