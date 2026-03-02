@@ -26,8 +26,13 @@ export default function IconUploader({ onUploadSuccess, currentImage }: Props) {
             const res = await api.post('/admin/media/upload', formData, {
                 headers: { 'Content-Type': 'multipart/form-data' }
             });
-            // Pass the relative path back to the parent (Services.tsx)
-            onUploadSuccess(res.data.path);
+            // Pass stored filename back to parent components
+            const uploaded = res.data?.filename || res.data?.path;
+            if (uploaded) {
+                onUploadSuccess(uploaded);
+            } else {
+                alert('Upload succeeded but no filename was returned.');
+            }
         } catch (err) {
             alert("Upload failed. Check server permissions.");
         } finally {

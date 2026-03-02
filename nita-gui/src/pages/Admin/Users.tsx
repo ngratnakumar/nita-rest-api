@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import api from '../../api/axios';
-import { Search, Shield, UserCheck, RefreshCw, Database, AlertCircle } from 'lucide-react';
+import { Search, Shield, UserCheck, RefreshCw, Database, AlertCircle, Filter, CheckSquare, Square, Users } from 'lucide-react';
 import Pagination from '../../components/Pagination';
 
 const UsersAdmin = () => {
@@ -11,11 +11,16 @@ const UsersAdmin = () => {
     const [loading, setLoading] = useState(false);
     const [initialLoad, setInitialLoad] = useState(true);
     const [updatingId, setUpdatingId] = useState<number | null>(null);
+    const [bulkUpdating, setBulkUpdating] = useState(false);
     const [discoveredUser, setDiscoveredUser] = useState<any>(null);
     const [showConfirm, setShowConfirm] = useState(false);
     const [errorMessage, setErrorMessage] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
     const [itemsPerPage, setItemsPerPage] = useState(10);
+    const [roleFilters, setRoleFilters] = useState<number[]>([]);
+    const [providerFilter, setProviderFilter] = useState<'all' | 'local' | 'openldap' | 'freeipa'>('all');
+    const [selectedUserIds, setSelectedUserIds] = useState<number[]>([]);
+    const [bulkRoleIds, setBulkRoleIds] = useState<number[]>([]);
 
     const fetchData = useCallback(async () => {
         try {
@@ -40,11 +45,22 @@ const UsersAdmin = () => {
 
     // Filter and paginate users
     const filteredUsers = useMemo(() => {
-        return users.filter(user =>
+        let result = users.filter(user =>
             user.name.toLowerCase().includes(listSearchTerm.toLowerCase()) ||
             user.username.toLowerCase().includes(listSearchTerm.toLowerCase())
         );
-    }, [users, listSearchTerm]);
+
+        if (roleFilters.length) {
+            result = result.filter(user => user.roles?.some((r: any) => roleFilters.includes(r.id)));
+        }
+
+        if (providerFilter !== 'all') {
+            const map: Record<string, number> = { local: 0, openldap: 1, freeipa: 2 };
+            result = result.filter(user => user.type === map[providerFilter]);
+        }
+
+        return result;
+    }, [users, listSearchTerm, roleFilters, providerFilter]);
 
     const totalPages = Math.ceil(filteredUsers.length / itemsPerPage);
     const paginatedUsers = useMemo(() => {
@@ -111,6 +127,45 @@ const UsersAdmin = () => {
         }
     };
 
+    const toggleRoleFilter = (roleId: number) => {
+        setRoleFilters(prev => prev.includes(roleId) ? prev.filter(id => id !== roleId) : [...prev, roleId]);
+    };
+
+    const toggleUserSelect = (userId: number) => {
+        setSelectedUserIds(prev => prev.includes(userId) ? prev.filter(id => id !== userId) : [...prev, userId]);
+    };
+
+    const toggleSelectAllPage = (usersOnPage: any[]) => {
+        const ids = usersOnPage.map(u => u.id);
+        const allSelected = ids.every(id => selectedUserIds.includes(id));
+        if (allSelected) {
+            setSelectedUserIds(prev => prev.filter(id => !ids.includes(id)));
+        } else {
+            setSelectedUserIds(prev => Array.from(new Set([...prev, ...ids])));
+        }
+    };
+
+    const toggleBulkRole = (roleId: number) => {
+        setBulkRoleIds(prev => prev.includes(roleId) ? prev.filter(id => id !== roleId) : [...prev, roleId]);
+    };
+
+    const applyBulkRoles = async () => {
+        if (!selectedUserIds.length) {
+            setErrorMessage('Select at least one user to apply roles.');
+            return;
+        }
+        setBulkUpdating(true);
+        setErrorMessage('');
+        try {
+            await Promise.all(selectedUserIds.map(userId => api.put(`/admin/users/${userId}/roles`, { roles: bulkRoleIds })));
+            await fetchData();
+        } catch (err) {
+            setErrorMessage('Bulk update failed.');
+        } finally {
+            setBulkUpdating(false);
+        }
+    };
+
     const getProviderBadge = (type: number) => {
         const providers: { [key: number]: { label: string; bg: string; text: string } } = {
             0: { label: 'Local', bg: 'bg-slate-100', text: 'text-slate-700' },
@@ -130,13 +185,18 @@ const UsersAdmin = () => {
 
     return (
         <div className="p-6 max-w-7xl mx-auto">
-            <header className="mb-8 flex justify-between items-end">
+            <header className="mb-6 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
                 <div>
                     <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-100">User Management</h2>
                     <p className="text-slate-500 dark:text-slate-400">Discover LDAP users and assign NITA system roles. ({filteredUsers.length} / {users.length} total)</p>
                 </div>
-                <div className="text-xs font-mono text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-3 py-1.5 rounded">
-                    Synced Users: <strong>{users.length}</strong>
+                <div className="flex flex-wrap gap-2 items-center">
+                    <div className="text-xs font-mono text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-3 py-1.5 rounded">
+                        Synced Users: <strong>{users.length}</strong>
+                    </div>
+                    <div className="text-xs font-mono text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-3 py-1.5 rounded">
+                        Selected: <strong>{selectedUserIds.length}</strong>
+                    </div>
                 </div>
             </header>
             
@@ -209,88 +269,192 @@ const UsersAdmin = () => {
                 )}
             </section>
 
+            {/* FILTERS + BULK BAR */}
+            <div className="bg-white dark:bg-slate-900 shadow-sm border border-slate-200 dark:border-slate-800 rounded-xl mb-4">
+                <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                    <div className="flex flex-wrap gap-3 items-center">
+                        <div className="flex items-center gap-2 px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl">
+                            <Search size={16} className="text-slate-400" />
+                            <input
+                                type="text"
+                                placeholder="Filter users by name or username"
+                                className="bg-transparent outline-none text-sm text-slate-700 dark:text-slate-100"
+                                value={listSearchTerm}
+                                onChange={(e) => {
+                                    setListSearchTerm(e.target.value);
+                                    setCurrentPage(1);
+                                }}
+                            />
+                        </div>
+                        <div className="flex items-center gap-2 px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl">
+                            <Filter size={16} className="text-slate-400" />
+                            <select
+                                className="bg-transparent text-sm text-slate-700 dark:text-slate-100 outline-none"
+                                value={providerFilter}
+                                onChange={(e) => setProviderFilter(e.target.value as any)}
+                            >
+                                <option value="all">All sources</option>
+                                <option value="local">Local</option>
+                                <option value="openldap">OpenLDAP</option>
+                                <option value="freeipa">FreeIPA</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2 items-center">
+                        {roles.map((role: any) => {
+                            const active = roleFilters.includes(role.id);
+                            return (
+                                <button
+                                    key={role.id}
+                                    onClick={() => toggleRoleFilter(role.id)}
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${
+                                        active
+                                            ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                                            : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-blue-200'
+                                    }`}
+                                >
+                                    {role.name}
+                                </button>
+                            );
+                        })}
+                        {roles.length === 0 && (
+                            <span className="text-xs text-slate-400">No roles found</span>
+                        )}
+                    </div>
+                </div>
+
+                <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between bg-slate-50/50 dark:bg-slate-800/50">
+                    <div className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200 font-semibold">
+                        <Users size={16} /> Bulk apply roles to selected users
+                    </div>
+                    <div className="flex flex-wrap gap-2 items-center">
+                        {roles.map((role: any) => {
+                            const active = bulkRoleIds.includes(role.id);
+                            return (
+                                <button
+                                    key={`bulk-${role.id}`}
+                                    onClick={() => toggleBulkRole(role.id)}
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${
+                                        active
+                                            ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
+                                            : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-emerald-200'
+                                    }`}
+                                >
+                                    {role.name}
+                                </button>
+                            );
+                        })}
+                        <button
+                            onClick={applyBulkRoles}
+                            disabled={bulkUpdating}
+                            className="px-4 py-2 rounded-lg bg-emerald-600 text-white text-xs font-black border border-emerald-600 shadow-sm disabled:opacity-50"
+                        >
+                            {bulkUpdating ? 'Applying...' : 'Apply to selected'}
+                        </button>
+                        <button
+                            onClick={() => setSelectedUserIds([])}
+                            className="px-3 py-2 rounded-lg text-xs font-semibold border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-800"
+                        >
+                            Clear selection
+                        </button>
+                    </div>
+                </div>
+            </div>
+
             {/* USERS TABLE */}
             <div className="bg-white dark:bg-slate-900 shadow-sm border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
-                <div className="p-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800">
-                    <input
-                        type="text"
-                        placeholder="Filter users by name or username..."
-                        className="w-full px-4 py-2 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 placeholder-slate-500 dark:placeholder-slate-400 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 outline-none transition-all"
-                        value={listSearchTerm}
-                        onChange={(e) => {
-                            setListSearchTerm(e.target.value);
-                            setCurrentPage(1);
-                        }}
-                    />
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                        <thead>
+                            <tr className="bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 text-xs uppercase font-bold">
+                                <th className="p-4 w-10 text-center">
+                                    <button
+                                        onClick={() => toggleSelectAllPage(paginatedUsers)}
+                                        className="inline-flex items-center justify-center"
+                                        aria-label="Select all on page"
+                                    >
+                                        {paginatedUsers.length && paginatedUsers.every(u => selectedUserIds.includes(u.id)) ? (
+                                            <CheckSquare size={16} />
+                                        ) : (
+                                            <Square size={16} />
+                                        )}
+                                    </button>
+                                </th>
+                                <th className="p-4 w-1/3 sticky left-10 bg-slate-50 dark:bg-slate-800 z-10">User Identity</th>
+                                <th className="p-4 w-1/6">Source</th>
+                                <th className="p-4 flex-1">Assigned Roles</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                            {users.length === 0 ? (
+                                <tr>
+                                    <td colSpan={4} className="p-12 text-center">
+                                        <Database className="mx-auto text-slate-200 dark:text-slate-700 mb-3" size={48} />
+                                        <p className="text-slate-400 dark:text-slate-400 font-medium">No users synced yet.</p>
+                                        <p className="text-slate-400 dark:text-slate-400 text-sm mt-1">Use the discovery form above to add LDAP users.</p>
+                                    </td>
+                                </tr>
+                            ) : paginatedUsers.length === 0 ? (
+                                <tr>
+                                    <td colSpan={4} className="p-12 text-center">
+                                        <p className="text-slate-400 dark:text-slate-400 font-medium">No users match your filters.</p>
+                                    </td>
+                                </tr>
+                            ) : paginatedUsers.map(user => {
+                                const isSelected = selectedUserIds.includes(user.id);
+                                return (
+                                    <tr key={user.id} className={`transition-colors ${updatingId === user.id ? 'bg-blue-50/40 dark:bg-blue-900/20' : 'hover:bg-slate-50/50 dark:hover:bg-slate-800/50'}`}>
+                                        <td className="p-4 text-center align-top">
+                                            <button onClick={() => toggleUserSelect(user.id)} aria-label="Select user" className="inline-flex items-center justify-center">
+                                                {isSelected ? <CheckSquare size={16} /> : <Square size={16} />}
+                                            </button>
+                                        </td>
+                                        <td className="p-4 sticky left-10 bg-white dark:bg-slate-900 z-10 shadow-[4px_0_8px_-6px_rgba(0,0,0,0.2)]">
+                                            <div className="font-semibold text-slate-900 dark:text-slate-100">{user.name}</div>
+                                            <div className="text-xs text-slate-500 dark:text-slate-400 font-mono mt-0.5">@{user.username}</div>
+                                        </td>
+                                        <td className="p-4 align-top">
+                                            {getProviderBadge(user.type)}
+                                        </td>
+                                        <td className="p-4">
+                                            {!roles || roles.length === 0 ? (
+                                                <span className="text-slate-400 dark:text-slate-500 text-sm">No roles available</span>
+                                            ) : (
+                                                <div className="flex flex-wrap gap-2">
+                                                    {roles.map(role => {
+                                                        const isActive = user.roles?.some((r: any) => r.id === role.id);
+                                                        return (
+                                                            <button
+                                                                key={role.id}
+                                                                disabled={updatingId === user.id || bulkUpdating}
+                                                                onClick={() => {
+                                                                    const currentIds = user.roles?.map((r: any) => r.id) || [];
+                                                                    const newIds = isActive 
+                                                                        ? currentIds.filter((id: number) => id !== role.id)
+                                                                        : [...currentIds, role.id];
+                                                                    handleRoleUpdate(user.id, newIds);
+                                                                }}
+                                                                className={`px-3 py-1.5 rounded text-xs font-semibold transition-all flex items-center gap-1.5 border ${
+                                                                    isActive 
+                                                                    ? 'bg-blue-600 dark:bg-blue-700 border-blue-600 dark:border-blue-700 text-white shadow-sm' 
+                                                                    : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:border-slate-400 dark:hover:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700'
+                                                                } ${(updatingId === user.id || bulkUpdating) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                                            >
+                                                                <Shield size={12} />
+                                                                {role.name}
+                                                            </button>
+                                                        );
+                                                    })}
+                                                </div>
+                                            )}
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
                 </div>
-                <table className="w-full text-left border-collapse">
-                    <thead>
-                        <tr className="bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 text-xs uppercase font-bold">
-                            <th className="p-4 w-1/3">User Identity</th>
-                            <th className="p-4 w-1/6">Source</th>
-                            <th className="p-4 flex-1">Assigned Roles</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                        {users.length === 0 ? (
-                            <tr>
-                                <td colSpan={3} className="p-12 text-center">
-                                    <Database className="mx-auto text-slate-200 dark:text-slate-700 mb-3" size={48} />
-                                    <p className="text-slate-400 dark:text-slate-400 font-medium">No users synced yet.</p>
-                                    <p className="text-slate-400 dark:text-slate-400 text-sm mt-1">Use the discovery form above to add LDAP users.</p>
-                                </td>
-                            </tr>
-                        ) : paginatedUsers.length === 0 ? (
-                            <tr>
-                                <td colSpan={3} className="p-12 text-center">
-                                    <p className="text-slate-400 dark:text-slate-400 font-medium">No users match your search.</p>
-                                </td>
-                            </tr>
-                        ) : paginatedUsers.map(user => (
-                            <tr key={user.id} className={`transition-colors ${updatingId === user.id ? 'bg-blue-50/40 dark:bg-blue-900/20' : 'hover:bg-slate-50/50 dark:hover:bg-slate-800/50'}`}>
-                                <td className="p-4">
-                                    <div className="font-semibold text-slate-900 dark:text-slate-100">{user.name}</div>
-                                    <div className="text-xs text-slate-500 dark:text-slate-400 font-mono mt-0.5">@{user.username}</div>
-                                </td>
-                                <td className="p-4">
-                                    {getProviderBadge(user.type)}
-                                </td>
-                                <td className="p-4">
-                                    {!roles || roles.length === 0 ? (
-                                        <span className="text-slate-400 dark:text-slate-500 text-sm">No roles available</span>
-                                    ) : (
-                                        <div className="flex flex-wrap gap-2">
-                                            {roles.map(role => {
-                                                const isActive = user.roles?.some((r: any) => r.id === role.id);
-                                                return (
-                                                    <button
-                                                        key={role.id}
-                                                        disabled={updatingId === user.id}
-                                                        onClick={() => {
-                                                            const currentIds = user.roles?.map((r: any) => r.id) || [];
-                                                            const newIds = isActive 
-                                                                ? currentIds.filter((id: number) => id !== role.id)
-                                                                : [...currentIds, role.id];
-                                                            handleRoleUpdate(user.id, newIds);
-                                                        }}
-                                                        className={`px-3 py-1.5 rounded text-xs font-semibold transition-all flex items-center gap-1.5 border ${
-                                                            isActive 
-                                                            ? 'bg-blue-600 dark:bg-blue-700 border-blue-600 dark:border-blue-700 text-white shadow-sm' 
-                                                            : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:border-slate-400 dark:hover:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700'
-                                                        } ${updatingId === user.id ? 'opacity-50 cursor-not-allowed' : ''}`}
-                                                    >
-                                                        <Shield size={12} />
-                                                        {role.name}
-                                                    </button>
-                                                );
-                                            })}
-                                        </div>
-                                    )}
-                                </td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
             </div>
 
             {/* Pagination */}
