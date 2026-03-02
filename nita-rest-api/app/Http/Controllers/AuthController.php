@@ -121,4 +121,30 @@ class AuthController extends Controller
             'message' => 'Password changed successfully.'
         ]);
     }
+
+    /**
+     * Allow an admin to impersonate another user without needing their password.
+     */
+    public function masquerade(Request $request, LocalUser $user)
+    {
+        $admin = $request->user();
+
+        // Only admins may masquerade
+        if (!$admin->roles()->where('name', 'admin')->exists()) {
+            return response()->json(['message' => 'Forbidden'], 403);
+        }
+
+        // Issue a dedicated token for the target user. Do not revoke existing tokens.
+        $token = $user->createToken('impersonated-by-' . $admin->id)->plainTextToken;
+
+        return response()->json([
+            'token' => $token,
+            'user' => $user->load('roles'),
+            'impersonator' => [
+                'id' => $admin->id,
+                'username' => $admin->username,
+                'name' => $admin->name,
+            ],
+        ]);
+    }
 }

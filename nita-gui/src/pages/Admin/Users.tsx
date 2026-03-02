@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import api from '../../api/axios';
-import { Search, Shield, UserCheck, RefreshCw, Database, AlertCircle, Filter, CheckSquare, Square, Users } from 'lucide-react';
+import { Search, Shield, UserCheck, RefreshCw, Database, AlertCircle, Filter, CheckSquare, Square, Users, Eye } from 'lucide-react';
 import Pagination from '../../components/Pagination';
 
 const UsersAdmin = () => {
@@ -21,6 +21,15 @@ const UsersAdmin = () => {
     const [providerFilter, setProviderFilter] = useState<'all' | 'local' | 'openldap' | 'freeipa'>('all');
     const [selectedUserIds, setSelectedUserIds] = useState<number[]>([]);
     const [bulkRoleIds, setBulkRoleIds] = useState<number[]>([]);
+    const [masqueradingId, setMasqueradingId] = useState<number | null>(null);
+
+    const currentUser = useMemo(() => {
+        try {
+            return JSON.parse(localStorage.getItem('user') || '{}');
+        } catch (err) {
+            return {};
+        }
+    }, []);
 
     const fetchData = useCallback(async () => {
         try {
@@ -147,6 +156,31 @@ const UsersAdmin = () => {
 
     const toggleBulkRole = (roleId: number) => {
         setBulkRoleIds(prev => prev.includes(roleId) ? prev.filter(id => id !== roleId) : [...prev, roleId]);
+    };
+
+    const handleMasquerade = async (user: any) => {
+        setMasqueradingId(user.id);
+        setErrorMessage('');
+        try {
+            const res = await api.post(`/admin/masquerade/${user.id}`);
+
+            const originRaw = localStorage.getItem('masquerade_origin');
+            const origin = originRaw ? JSON.parse(originRaw) : {
+                token: localStorage.getItem('token'),
+                user: currentUser,
+            };
+
+            localStorage.setItem('masquerade_origin', JSON.stringify(origin));
+            localStorage.setItem('token', res.data.token);
+            localStorage.setItem('user', JSON.stringify(res.data.user));
+
+            window.location.href = '/dashboard';
+        } catch (err: any) {
+            const msg = err.response?.data?.message || 'Failed to masquerade as user.';
+            setErrorMessage(msg);
+        } finally {
+            setMasqueradingId(null);
+        }
     };
 
     const applyBulkRoles = async () => {
@@ -384,12 +418,13 @@ const UsersAdmin = () => {
                                 <th className="p-4 w-1/3 sticky left-10 bg-slate-50 dark:bg-slate-800 z-10">User Identity</th>
                                 <th className="p-4 w-1/6">Source</th>
                                 <th className="p-4 flex-1">Assigned Roles</th>
+                                <th className="p-4 w-32">Actions</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                             {users.length === 0 ? (
                                 <tr>
-                                    <td colSpan={4} className="p-12 text-center">
+                                    <td colSpan={5} className="p-12 text-center">
                                         <Database className="mx-auto text-slate-200 dark:text-slate-700 mb-3" size={48} />
                                         <p className="text-slate-400 dark:text-slate-400 font-medium">No users synced yet.</p>
                                         <p className="text-slate-400 dark:text-slate-400 text-sm mt-1">Use the discovery form above to add LDAP users.</p>
@@ -397,7 +432,7 @@ const UsersAdmin = () => {
                                 </tr>
                             ) : paginatedUsers.length === 0 ? (
                                 <tr>
-                                    <td colSpan={4} className="p-12 text-center">
+                                    <td colSpan={5} className="p-12 text-center">
                                         <p className="text-slate-400 dark:text-slate-400 font-medium">No users match your filters.</p>
                                     </td>
                                 </tr>
@@ -448,6 +483,16 @@ const UsersAdmin = () => {
                                                     })}
                                                 </div>
                                             )}
+                                        </td>
+                                        <td className="p-4 align-top">
+                                            <button
+                                                onClick={() => handleMasquerade(user)}
+                                                disabled={masqueradingId === user.id}
+                                                className="w-full px-3 py-2 rounded-lg text-xs font-bold border border-blue-200 dark:border-blue-700 text-blue-700 dark:text-blue-200 bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-800 disabled:opacity-50 flex items-center justify-center gap-1"
+                                            >
+                                                <Eye size={14} />
+                                                Masquerade
+                                            </button>
                                         </td>
                                     </tr>
                                 );

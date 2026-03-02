@@ -2,6 +2,7 @@ import {
     User, 
     LogOut, 
     LayoutDashboard, 
+    ClipboardList,
     Users, 
     Server, 
     Key, 
@@ -11,7 +12,8 @@ import {
     Menu,
     X,
     Moon,
-    Sun
+    Sun,
+    Undo2
 } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import api from '../api/axios';
@@ -41,6 +43,17 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
     
     // Parse user from storage
     const user = JSON.parse(localStorage.getItem('user') || '{}');
+    const roleNames: string[] = Array.isArray(user.roles) ? user.roles.map((r: any) => r.name) : [];
+    const visibleRoles = roleNames.slice(0, 3);
+    const extraRoles = roleNames.length > 3 ? roleNames.slice(3) : [];
+    const [masqueradeOrigin, setMasqueradeOrigin] = useState(() => {
+        try {
+            const raw = localStorage.getItem('masquerade_origin');
+            return raw ? JSON.parse(raw) : null;
+        } catch (err) {
+            return null;
+        }
+    });
     
     // Role check
     const isAdmin = Array.isArray(user.roles) && user.roles.some((r: any) => r.name === 'admin');
@@ -48,6 +61,17 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
     const handleLogout = () => {
         localStorage.clear();
         navigate('/login');
+    };
+
+    const handleExitMasquerade = () => {
+        if (!masqueradeOrigin) return;
+        localStorage.setItem('token', masqueradeOrigin.token || '');
+        if (masqueradeOrigin.user) {
+            localStorage.setItem('user', JSON.stringify(masqueradeOrigin.user));
+        }
+        localStorage.removeItem('masquerade_origin');
+        setMasqueradeOrigin(null);
+        window.location.reload();
     };
 
     const handleExportAllData = async () => {
@@ -118,15 +142,30 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
                         <div className="p-2 bg-blue-600/20 dark:bg-blue-500/20 rounded-lg flex-shrink-0">
                             <User className="text-blue-400 dark:text-blue-300" size={20} />
                         </div>
-                        <div className="overflow-hidden">
-                            <p className="text-sm font-bold text-white dark:text-slate-100 truncate">{user.username || 'Guest'}</p>
-                            <span className={`text-[10px] uppercase px-2 py-0.5 rounded-full font-black border inline-block ${
-                                isAdmin 
-                                    ? 'bg-red-500/10 text-red-400 border-red-500/30 dark:bg-red-600/10 dark:text-red-300 dark:border-red-600/30' 
-                                    : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30 dark:bg-emerald-600/10 dark:text-emerald-300 dark:border-emerald-600/30'
-                            }`}>
-                                {isAdmin ? 'System Admin' : 'Staff User'}
-                            </span>
+                        <div className="overflow-hidden text-white dark:text-slate-100">
+                            <div className="text-sm font-bold truncate">{user.name || user.username || 'Guest'}</div>
+                            <div className="text-[11px] text-slate-400 dark:text-slate-500 font-mono truncate">@{user.username || 'unknown'}</div>
+                            <div className="flex flex-wrap gap-1 mt-1">
+                                {roleNames.length > 0 ? (
+                                    <>
+                                        {visibleRoles.map((r) => (
+                                            <span key={r} className="text-[10px] uppercase px-2 py-0.5 rounded-full font-black border border-slate-700/60 bg-slate-800/80 text-slate-200 dark:border-slate-600 dark:bg-slate-800/80">
+                                                {r}
+                                            </span>
+                                        ))}
+                                        {extraRoles.length > 0 && (
+                                            <span
+                                                className="text-[10px] uppercase px-2 py-0.5 rounded-full font-black border border-amber-500/50 bg-amber-500/15 text-amber-200"
+                                                title={extraRoles.join(', ')}
+                                            >
+                                                +{extraRoles.length} more
+                                            </span>
+                                        )}
+                                    </>
+                                ) : (
+                                    <span className="text-[10px] uppercase px-2 py-0.5 rounded-full font-black border border-slate-700/60 bg-slate-800/80 text-slate-200">Staff</span>
+                                )}
+                            </div>
                         </div>
                     </div>
                     {/* Theme Toggle */}
@@ -140,6 +179,19 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
                 </div>
             </div>
 
+            {masqueradeOrigin && (
+                <div className="mx-4 mt-4 p-3 border border-amber-400/60 bg-amber-500/10 rounded-lg text-amber-200">
+                    <div className="text-[10px] font-black uppercase tracking-[0.2em]">Impersonating</div>
+                    <div className="text-sm font-bold text-white">@{user.username || 'user'}</div>
+                    <button
+                        onClick={handleExitMasquerade}
+                        className="mt-2 w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-amber-500 text-white font-bold text-xs hover:bg-amber-600 transition-colors"
+                    >
+                        <Undo2 size={14} /> Return to {masqueradeOrigin?.user?.username || 'admin'}
+                    </button>
+                </div>
+            )}
+
             {/* Navigation Section */}
             <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
                 <p className="text-[10px] font-black text-slate-500 dark:text-slate-600 uppercase px-3 mb-2 tracking-[0.2em]">Main Menu</p>
@@ -147,6 +199,11 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
                 <Link to="/dashboard" className={getLinkClass('/dashboard')}>
                     <LayoutDashboard size={18} />
                     <span className="text-sm font-medium">My Dashboard</span>
+                </Link>
+
+                <Link to="/tickets" className={getLinkClass('/tickets')}>
+                    <ClipboardList size={18} />
+                    <span className="text-sm font-medium">Complaints / Tickets</span>
                 </Link>
 
                 {isAdmin && (

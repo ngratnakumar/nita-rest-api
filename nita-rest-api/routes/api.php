@@ -5,6 +5,7 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\ManagementController;
 use App\Http\Controllers\MediaController;
 use App\Http\Controllers\LDAPController;
+use App\Http\Controllers\TicketController;
 use App\Models\Role;
 use App\Models\Service;
 use App\Models\AuditLog;
@@ -48,6 +49,17 @@ Route::middleware('auth:sanctum')->group(function () {
     
     // Matrix Helper: Needed by the frontend to build the grid
     Route::get('/roles', [ManagementController::class, 'getAllRoles']);
+
+    // Complaint / Ticketing
+    Route::prefix('tickets')->group(function () {
+        Route::get('/', [TicketController::class, 'index']);
+        Route::get('/handlers', [TicketController::class, 'handlers']);
+        Route::post('/', [TicketController::class, 'store']);
+        Route::get('/{ticket}', [TicketController::class, 'show']);
+        Route::post('/{ticket}/comment', [TicketController::class, 'comment']);
+        Route::patch('/{ticket}/status', [TicketController::class, 'updateStatus']);
+        Route::patch('/{ticket}/assign', [TicketController::class, 'assign']);
+    });
 
     /**
      * Service-Specific Credentials/Tokens
@@ -96,6 +108,9 @@ Route::middleware('auth:sanctum')->group(function () {
         
         // The Sync Route used by Services.tsx Form
         Route::put('/services/{service}/roles', [ManagementController::class, 'syncServiceRoles']);
+
+        // --- Admin Masquerade ---
+        Route::post('/masquerade/{user}', [AuthController::class, 'masquerade']);
 
         // --- Media & Assets ---
         Route::prefix('media')->group(function () {

@@ -8,6 +8,7 @@ import ServiceManagement from './pages/Admin/Services';
 import RolesManagement from './pages/Admin/Roles'; 
 import RolesManager from './pages/Admin/RolesManager'; 
 import IconManager from './pages/Admin/IconManager';
+import Tickets from './pages/Tickets';
 import Sidebar from './components/Sidebar';
 
 // 1. Unified Layout Wrapper
@@ -59,6 +60,7 @@ function App() {
         <Route element={<ProtectedLayout />}>
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/profile" element={<ProfileSettings />} />
+          <Route path="/tickets" element={<Tickets />} />
 
           {/* Admin-Only Section */}
           <Route element={<AdminRoute />}>
