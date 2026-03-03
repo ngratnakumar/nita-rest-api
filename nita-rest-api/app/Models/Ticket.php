@@ -46,4 +46,9 @@ class Ticket extends Model
     {
         return $this->hasMany(TicketAttachment::class);
     }
+
+    public function approvals(): HasMany
+    {
+        return $this->hasMany(TicketApproval::class)->latest();
+    }
 }

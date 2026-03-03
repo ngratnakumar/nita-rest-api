@@ -6,6 +6,7 @@ use App\Http\Controllers\ManagementController;
 use App\Http\Controllers\MediaController;
 use App\Http\Controllers\LDAPController;
 use App\Http\Controllers\TicketController;
+use App\Http\Controllers\NotificationController;
 use App\Models\Role;
 use App\Models\Service;
 use App\Models\AuditLog;
@@ -54,12 +55,21 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::prefix('tickets')->group(function () {
         Route::get('/', [TicketController::class, 'index']);
         Route::get('/handlers', [TicketController::class, 'handlers']);
+        Route::get('/approvers', [TicketController::class, 'approvers']);
         Route::post('/', [TicketController::class, 'store']);
         Route::get('/{ticket}', [TicketController::class, 'show']);
         Route::post('/{ticket}/comment', [TicketController::class, 'comment']);
         Route::patch('/{ticket}/status', [TicketController::class, 'updateStatus']);
         Route::patch('/{ticket}/assign', [TicketController::class, 'assign']);
+        Route::post('/{ticket}/reopen', [TicketController::class, 'reopen']);
+        Route::post('/{ticket}/approvals', [TicketController::class, 'requestApproval']);
+        Route::post('/{ticket}/approvals/{approval}/decision', [TicketController::class, 'decideApproval']);
     });
+
+    // Notifications
+    Route::get('/notifications', [NotificationController::class, 'index']);
+    Route::post('/notifications/read-all', [NotificationController::class, 'markAllRead']);
+    Route::post('/notifications/{notification}/read', [NotificationController::class, 'markRead']);
 
     /**
      * Service-Specific Credentials/Tokens

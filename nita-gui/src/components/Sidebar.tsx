@@ -13,7 +13,8 @@ import {
     X,
     Moon,
     Sun,
-    Undo2
+    Undo2,
+    Bell
 } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import api from '../api/axios';
@@ -204,6 +205,11 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
                 <Link to="/tickets" className={getLinkClass('/tickets')}>
                     <ClipboardList size={18} />
                     <span className="text-sm font-medium">Complaints / Tickets</span>
+                </Link>
+
+                <Link to="/notifications" className={getLinkClass('/notifications')}>
+                    <Bell size={18} />
+                    <span className="text-sm font-medium">Notifications</span>
                 </Link>
 
                 {isAdmin && (
