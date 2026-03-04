@@ -79,6 +79,14 @@ export default function NotificationsPage() {
     }
     if (item.data.ticket_id) {
       navigate(`/tickets?ticket=${item.data.ticket_id}`);
+    } else if (item.data.approval_id) {
+      // If there's an approval, it's usually linked to a ticket anyway
+      // but let's assume kind/ticket_id is provided in the data payload.
+      // If only approval_id is here, we might need to fetch the ticket it belongs to
+      // For now, if kind contains "ticket", we use ticket_id.
+      if (item.data.ticket_id) {
+        navigate(`/tickets?ticket=${item.data.ticket_id}`);
+      }
     }
   };
 
@@ -125,13 +133,13 @@ export default function NotificationsPage() {
                 setPage(1);
               }}
             >
-              See all
+              See All
             </button>
           </div>
           {perPage !== 'all' && meta && (
             <div className="flex items-center gap-2 ml-auto">
               <button
-                className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800"
+                className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 disabled:opacity-50"
                 disabled={page <= 1}
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
               >
@@ -139,7 +147,7 @@ export default function NotificationsPage() {
               </button>
               <span>Page {meta?.current_page || page} of {meta?.last_page || 1}</span>
               <button
-                className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800"
+                className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 disabled:opacity-50"
                 disabled={!meta || page >= (meta?.last_page || 1)}
                 onClick={() => setPage((p) => (meta ? Math.min(meta.last_page, p + 1) : p + 1))}
               >

@@ -38,6 +38,11 @@ class TicketController extends Controller
         return collect($roleNames)->contains(fn ($n) => in_array($n, ['admin', 'it team'], true));
     }
 
+    private function isAdmin(User $user): bool
+    {
+        return $user->roles()->where(DB::raw('LOWER(name)'), 'admin')->exists();
+    }
+
     public function index(Request $request)
     {
         $user = $request->user();
@@ -50,18 +55,26 @@ class TicketController extends Controller
             'comments.user:id,username,name',
             'approvals.requester:id,username,name',
             'approvals.approver:id,username,name',
+            'service:id,name,category',
         ]);
 
+        $status = $request->string('status');
+        $assigneeId = $request->integer('assignee_id');
+        $hideClosed = $request->boolean('hide_closed');
+        $unassignedOnly = $request->boolean('unassigned');
+        $creatorId = $request->integer('creator_id');
+        $category = $request->string('category');
+        $period = $request->string('period');
+        $mineOnly = $request->boolean('mine_only');
+        $sortBy = $request->string('sort_by')->lower() ?: 'updated_at';
+        $sortDir = $request->string('sort_dir')->lower() === 'asc' ? 'asc' : 'desc';
+
         if ($this->isIt($user)) {
-            $status = $request->string('status');
-            $assigneeId = $request->integer('assignee_id');
-            $hideClosed = $request->boolean('hide_closed');
-            $unassignedOnly = $request->boolean('unassigned');
-            $creatorId = $request->integer('creator_id');
-            $category = $request->string('category');
-            $period = $request->string('period');
-            $sortBy = $request->string('sort_by')->lower() ?: 'updated_at';
-            $sortDir = $request->string('sort_dir')->lower() === 'asc' ? 'asc' : 'desc';
+            if ($mineOnly) {
+                $query->where('user_id', $user->id);
+            } elseif ($creatorId) {
+                $query->where('user_id', $creatorId);
+            }
 
             if ($status->isNotEmpty()) {
                 $query->where('status', $status);
@@ -71,10 +84,6 @@ class TicketController extends Controller
                 $query->where('assignee_id', $assigneeId);
             }
 
-            if ($creatorId) {
-                $query->where('user_id', $creatorId);
-            }
-
             if ($unassignedOnly) {
                 $query->whereNull('assignee_id');
             }
@@ -82,32 +91,43 @@ class TicketController extends Controller
             if ($hideClosed) {
                 $query->whereNotIn('status', ['done', 'closed']);
             }
-
-            if ($category->isNotEmpty()) {
-                $query->whereHas('service', function ($q) use ($category) {
-                    $q->where('category', $category);
-                });
-            }
-
-            if ($period->isNotEmpty()) {
-                $dateFrom = match ($period->toString()) {
-                    'last7' => Carbon::now()->subDays(7),
-                    'last30' => Carbon::now()->subDays(30),
-                    'last365' => Carbon::now()->subDays(365),
-                    default => null,
-                };
-                if ($dateFrom) {
-                    $query->whereDate('created_at', '>=', $dateFrom->toDateString());
-                }
-            }
-
-            $allowedSorts = ['updated_at', 'created_at', 'status'];
-            if (!in_array($sortBy, $allowedSorts, true)) {
-                $sortBy = 'updated_at';
-            }
-            $query->orderBy($sortBy, $sortDir);
         } else {
             $query->where('user_id', $user->id);
+            if ($status->isNotEmpty()) {
+                $query->where('status', $status);
+            }
+            if ($hideClosed) {
+                $query->whereNotIn('status', ['done', 'closed']);
+            }
+        }
+
+        if ($category->isNotEmpty()) {
+            $query->whereHas('service', function ($q) use ($category) {
+                $q->where('category', $category);
+            });
+        }
+
+        if ($period->isNotEmpty()) {
+            $dateFrom = match ($period->toString()) {
+                'last7' => Carbon::now()->subDays(7),
+                'last30' => Carbon::now()->subDays(30),
+                'last365' => Carbon::now()->subDays(365),
+                default => null,
+            };
+            if ($dateFrom) {
+                $query->whereDate('created_at', '>=', $dateFrom->toDateString());
+            }
+        }
+
+        // Sorting
+        $allowedSorts = ['updated_at', 'created_at', 'status', 'title'];
+        if ($sortBy === 'creator') {
+            $query->join('users', 'tickets.user_id', '=', 'users.id')
+                ->select('tickets.*')
+                ->orderBy('users.name', $sortDir);
+        } elseif (in_array($sortBy, $allowedSorts, true)) {
+            $query->orderBy($sortBy, $sortDir);
+        } else {
             $query->orderBy('updated_at', 'desc');
         }
 
@@ -165,6 +185,11 @@ class TicketController extends Controller
             return response()->json(['message' => 'Forbidden'], 403);
         }
 
+           $adminReadOnly = $this->isAdmin($user) && $ticket->assignee_id !== $user->id;
+           if ($adminReadOnly) {
+               return response()->json(['message' => 'Admins have read-only access to tickets they are not handling.'], 403);
+           }
+
         if ($this->isClosed($ticket)) {
             return response()->json(['message' => 'Ticket is closed. Ask the requester to reopen before adding updates.'], 422);
         }
@@ -198,6 +223,10 @@ class TicketController extends Controller
         $user = $request->user();
         if (!$this->canWork($user, $ticket)) {
             return response()->json(['message' => 'Forbidden'], 403);
+        }
+
+        if ($this->isAdmin($user) && $ticket->status !== 'new') {
+             return response()->json(['message' => 'Admins can only modify new tickets.'], 403);
         }
 
         if ($this->isClosed($ticket)) {

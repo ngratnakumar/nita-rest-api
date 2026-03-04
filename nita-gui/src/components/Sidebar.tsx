@@ -55,6 +55,25 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
             return null;
         }
     });
+
+    const [unreadCount, setUnreadCount] = useState(0);
+
+    const fetchUnreadCount = async () => {
+        try {
+            const res = await api.get('/notifications');
+            const data = res.data?.data ?? res.data ?? [];
+            const count = data.filter((n: any) => !n.read_at).length;
+            setUnreadCount(count);
+        } catch (err) {
+            console.error('Failed to fetch notifications count', err);
+        }
+    };
+
+    useEffect(() => {
+        fetchUnreadCount();
+        const interval = setInterval(fetchUnreadCount, 30000); // 30s poll
+        return () => clearInterval(interval);
+    }, []);
     
     // Role check
     const isAdmin = Array.isArray(user.roles) && user.roles.some((r: any) => r.name === 'admin');
@@ -208,7 +227,14 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
                 </Link>
 
                 <Link to="/notifications" className={getLinkClass('/notifications')}>
-                    <Bell size={18} />
+                    <div className="relative">
+                        <Bell size={18} />
+                        {unreadCount > 0 && (
+                            <span className="absolute -top-1 -right-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-red-500 text-[8px] font-bold text-white border-2 border-slate-900 leading-none">
+                                {unreadCount > 9 ? '9+' : unreadCount}
+                            </span>
+                        )}
+                    </div>
                     <span className="text-sm font-medium">Notifications</span>
                 </Link>
 

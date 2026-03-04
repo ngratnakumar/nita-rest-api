@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import api from '../api/axios';
-import { FilePlus2, Send, Paperclip, Loader2, ShieldCheck, User as UserIcon, Filter, AlertCircle, Info, ClipboardList, UserCheck, Users, MessagesSquare as ChatBubbleIcon, Lock, RefreshCw } from 'lucide-react';
+import { FilePlus2, Send, Paperclip, Loader2, ShieldCheck, User as UserIcon, Filter, AlertCircle, Info, ClipboardList, UserCheck, Users, MessagesSquare as ChatBubbleIcon, Lock, RefreshCw, ArrowUpDown } from 'lucide-react';
 
 interface Service {
   id: number;
@@ -63,6 +64,10 @@ const STATUS_OPTIONS = [
 export default function TicketsPage() {
   const user = JSON.parse(localStorage.getItem('user') || '{}');
   const isIt = Array.isArray(user.roles) && user.roles.some((r: any) => ['IT Team', 'admin'].includes(r.name));
+  const isAdmin = Array.isArray(user.roles) && user.roles.some((r: any) => r.name === 'admin');
+
+  const location = useLocation();
+  const navigate = useNavigate();
 
   const [services, setServices] = useState<Service[]>([]);
   const [handlers, setHandlers] = useState<User[]>([]);
@@ -78,7 +83,7 @@ export default function TicketsPage() {
   const [sortBy, setSortBy] = useState<string>('updated_at_desc');
   const [categoryFilter, setCategoryFilter] = useState<string>('');
   const [creatorFilter, setCreatorFilter] = useState<number | ''>('');
-  const [viewMode, setViewMode] = useState<'cards' | 'table'>(isIt ? 'table' : 'cards');
+  const [viewMode, setViewMode] = useState<'cards' | 'table'>('table');
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
   const [error, setError] = useState('');
 
@@ -116,13 +121,8 @@ export default function TicketsPage() {
       if (isIt) {
         if (unassignedOnly) params.unassigned = true;
         if (assigneeFilter) params.assignee_id = assigneeFilter;
-        if (showMineOnly) {
-          params.creator_id = user.id;
-        } else if (creatorFilter) {
-          params.creator_id = creatorFilter;
-        }
-      } else {
-        params.creator_id = user.id;
+        if (showMineOnly) params.mine_only = true;
+        if (creatorFilter) params.creator_id = creatorFilter;
       }
 
       const [svcRes, ticketRes, handlerRes] = await Promise.all([
@@ -148,6 +148,32 @@ export default function TicketsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [statusFilter, showMineOnly, unassignedOnly, hideResolved, assigneeFilter, periodFilter, sortBy, categoryFilter, creatorFilter, page, perPage]);
 
+  // Deep linking: check URL for ?ticket=ID
+  useEffect(() => {
+    const searchParams = new URLSearchParams(location.search);
+    const ticketId = searchParams.get('ticket');
+    if (ticketId && tickets.length > 0) {
+      const found = tickets.find(t => String(t.id) === ticketId);
+      if (found) {
+        setSelectedTicket(found);
+      } else {
+        // Try to fetch it specifically if not in current page list
+        api.get(`/tickets/${ticketId}`).then(res => {
+          setSelectedTicket(res.data);
+        }).catch(console.error);
+      }
+      // Clear the param from URL to prevent re-opening on manual refresh or back
+      navigate(location.pathname, { replace: true });
+    }
+  }, [location.search, tickets, navigate, location.pathname]);
+
+  const toggleSort = (field: string) => {
+    const [currentField, currentDir] = sortBy.split('_');
+    const newDir = (currentField === field && currentDir === 'asc') ? 'desc' : 'asc';
+    setSortBy(`${field}_${newDir}`);
+    setPage(1);
+  };
+
   const categories = useMemo(() => {
     const set = new Set<string>();
     services.forEach((s) => {
@@ -167,6 +193,7 @@ export default function TicketsPage() {
   }, [tickets]);
 
   const filteredTickets = useMemo(() => tickets, [tickets]);
+  const adminReadOnly = isAdmin && selectedTicket?.assignee?.id !== user.id;
 
   const resetForm = () => {
     setServiceId('');
@@ -356,9 +383,9 @@ export default function TicketsPage() {
           <select
             className="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
+            onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
           >
-            <option value="">All statuses</option>
+            <option value="">All Statuses</option>
             {STATUS_OPTIONS.map((s) => (
               <option key={s.key} value={s.key}>{s.label}</option>
             ))}
@@ -366,19 +393,19 @@ export default function TicketsPage() {
           <select
             className="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"
             value={periodFilter}
-            onChange={(e) => setPeriodFilter(e.target.value)}
+            onChange={(e) => { setPeriodFilter(e.target.value); setPage(1); }}
           >
-            <option value="">Any time</option>
-            <option value="last7">Last 7 days</option>
-            <option value="last30">Last 30 days</option>
-            <option value="last365">Last 12 months</option>
+            <option value="">Any Time</option>
+            <option value="last7">Last 7 Days</option>
+            <option value="last30">Last 30 Days</option>
+            <option value="last365">Last 12 Months</option>
           </select>
           <select
             className="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"
             value={categoryFilter}
-            onChange={(e) => setCategoryFilter(e.target.value)}
+            onChange={(e) => { setCategoryFilter(e.target.value); setPage(1); }}
           >
-            <option value="">All categories</option>
+            <option value="">All Categories</option>
             {categories.map((c) => (
               <option key={c} value={c}>{c}</option>
             ))}
@@ -386,18 +413,26 @@ export default function TicketsPage() {
           <select
             className="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"
             value={sortBy}
-            onChange={(e) => setSortBy(e.target.value)}
+            onChange={(e) => { setSortBy(e.target.value); setPage(1); }}
           >
-            <option value="updated_at_desc">Latest updates</option>
-            <option value="updated_at_asc">Oldest updates</option>
-            <option value="created_at_desc">Newest created</option>
-            <option value="created_at_asc">Oldest created</option>
+            <option value="updated_at_desc">Latest Updates</option>
+            <option value="updated_at_asc">Oldest Updates</option>
+            <option value="created_at_desc">Newest Created</option>
+            <option value="created_at_asc">Oldest Created</option>
           </select>
           {isIt && (
             <div className="flex flex-wrap gap-2">
               <label className="flex items-center gap-2 text-xs font-semibold text-slate-600 dark:text-slate-300 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800">
-                <input type="checkbox" checked={showMineOnly} onChange={(e) => setShowMineOnly(e.target.checked)} />
-                Only tickets I raised
+                <input type="checkbox" checked={showMineOnly} onChange={(e) => {
+                  setShowMineOnly(e.target.checked);
+                  if (e.target.checked) {
+                    setUnassignedOnly(false);
+                    setAssigneeFilter('');
+                    setCreatorFilter('');
+                  }
+                  setPage(1);
+                }} />
+                My Raised Tickets
               </label>
               <label className="flex items-center gap-2 text-xs font-semibold text-slate-600 dark:text-slate-300 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800">
                 <input
@@ -405,14 +440,18 @@ export default function TicketsPage() {
                   checked={unassignedOnly}
                   onChange={(e) => {
                     setUnassignedOnly(e.target.checked);
-                    if (e.target.checked) setAssigneeFilter('');
+                    if (e.target.checked) {
+                      setAssigneeFilter('');
+                      setShowMineOnly(false);
+                    }
+                    setPage(1);
                   }}
                 />
-                Show unassigned only
+                Unassigned Only
               </label>
               <label className="flex items-center gap-2 text-xs font-semibold text-slate-600 dark:text-slate-300 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800">
-                <input type="checkbox" checked={hideResolved} onChange={(e) => setHideResolved(e.target.checked)} />
-                Hide done/closed
+                <input type="checkbox" checked={hideResolved} onChange={(e) => { setHideResolved(e.target.checked); setPage(1); }} />
+                Opened Only
               </label>
               <select
                 className="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs"
@@ -420,11 +459,15 @@ export default function TicketsPage() {
                 onChange={(e) => {
                   const val = e.target.value ? Number(e.target.value) : '';
                   setAssigneeFilter(val);
-                  if (val) setUnassignedOnly(false);
+                  if (val) {
+                    setUnassignedOnly(false);
+                    setShowMineOnly(false);
+                  }
+                  setPage(1);
                 }}
               >
-                <option value="">All handlers</option>
-                <option value={user.id}>Assigned to me</option>
+                <option value="">All Handlers</option>
+                <option value={user.id}>Assigned to Me</option>
                 {handlers.map((h) => (
                   <option key={h.id} value={h.id}>{h.name} ({h.username})</option>
                 ))}
@@ -432,10 +475,14 @@ export default function TicketsPage() {
               <select
                 className="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs"
                 value={creatorFilter}
-                onChange={(e) => setCreatorFilter(e.target.value ? Number(e.target.value) : '')}
+                onChange={(e) => {
+                  setCreatorFilter(e.target.value ? Number(e.target.value) : '');
+                  if (e.target.value) setShowMineOnly(false);
+                  setPage(1);
+                }}
               >
-                <option value="">All requesters</option>
-                <option value={user.id}>Raised by me</option>
+                <option value="">All Requesters</option>
+                <option value={user.id}>Raised by Me</option>
                 {creators.map((c) => (
                   <option key={c.id} value={c.id}>{c.name} ({c.username})</option>
                 ))}
@@ -443,25 +490,31 @@ export default function TicketsPage() {
             </div>
           )}
         </div>
-        {isIt && (
-          <div className="ml-auto flex items-center gap-2 text-xs font-semibold">
-            <span>View:</span>
-            <button
-              type="button"
-              onClick={() => setViewMode('table')}
-              className={`px-3 py-1.5 rounded-lg border text-xs font-bold ${viewMode === 'table' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-300 dark:border-slate-700'}`}
-            >
-              Compact table
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewMode('cards')}
-              className={`px-3 py-1.5 rounded-lg border text-xs font-bold ${viewMode === 'cards' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-300 dark:border-slate-700'}`}
-            >
-              Cards
-            </button>
+        {!isIt && (
+          <div className="flex items-center gap-2">
+            <label className="flex items-center gap-2 text-xs font-semibold text-slate-600 dark:text-slate-300 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800">
+              <input type="checkbox" checked={hideResolved} onChange={(e) => { setHideResolved(e.target.checked); setPage(1); }} />
+              Opened Only
+            </label>
           </div>
         )}
+        <div className="ml-auto flex items-center gap-2 text-xs font-semibold">
+          <span>View:</span>
+          <button
+            type="button"
+            onClick={() => setViewMode('table')}
+            className={`px-3 py-1.5 rounded-lg border text-xs font-bold ${viewMode === 'table' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-300 dark:border-slate-700'}`}
+          >
+            Compact table
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewMode('cards')}
+            className={`px-3 py-1.5 rounded-lg border text-xs font-bold ${viewMode === 'cards' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-300 dark:border-slate-700'}`}
+          >
+            Cards
+          </button>
+        </div>
       </div>
 
       <div className="flex flex-wrap items-center gap-3 text-xs font-semibold text-slate-600 dark:text-slate-300">
@@ -494,7 +547,7 @@ export default function TicketsPage() {
         {perPage !== 'all' && meta && (
           <div className="flex items-center gap-2 ml-auto">
             <button
-              className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800"
+              className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 disabled:opacity-50"
               disabled={page <= 1}
               onClick={() => setPage((p) => Math.max(1, p - 1))}
             >
@@ -502,7 +555,7 @@ export default function TicketsPage() {
             </button>
             <span>Page {meta?.current_page || page} of {meta?.last_page || 1}</span>
             <button
-              className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800"
+              className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 disabled:opacity-50"
               disabled={!meta || page >= (meta?.last_page || 1)}
               onClick={() => setPage((p) => (meta ? Math.min(meta.last_page, p + 1) : p + 1))}
             >
@@ -520,34 +573,54 @@ export default function TicketsPage() {
           <div className="p-6 border border-dashed border-slate-300 dark:border-slate-700 rounded-lg text-slate-500 flex items-center gap-2">
             <Info size={16} /> No tickets yet.
           </div>
-        ) : viewMode === 'table' && isIt ? (
-          <div className="overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-xl bg-white dark:bg-slate-900">
+        ) : viewMode === 'table' ? (
+          <div className="overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-xl bg-white dark:bg-slate-900 shadow-sm">
             <table className="min-w-full text-sm">
-              <thead className="bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-xs uppercase font-bold">
+              <thead className="bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-[10px] uppercase font-bold sticky top-0 z-10">
                 <tr>
-                  <th className="px-3 py-2 text-left">ID</th>
-                  <th className="px-3 py-2 text-left">Title</th>
-                  <th className="px-3 py-2 text-left">Service</th>
-                  <th className="px-3 py-2 text-left">Status</th>
-                  <th className="px-3 py-2 text-left">Assignee</th>
-                  <th className="px-3 py-2 text-left">Requester</th>
-                  <th className="px-3 py-2 text-left">Updated</th>
+                  <th className="px-3 py-3 text-left border-b border-slate-200 dark:border-slate-800">
+                    <button onClick={() => toggleSort('id')} className="flex items-center gap-1 hover:text-blue-500 transition-colors">ID <ArrowUpDown size={12} /></button>
+                  </th>
+                  <th className="px-3 py-3 text-left border-b border-slate-200 dark:border-slate-800">
+                    <button onClick={() => toggleSort('title')} className="flex items-center gap-1 hover:text-blue-500 transition-colors">Title <ArrowUpDown size={12} /></button>
+                  </th>
+                  <th className="px-3 py-3 text-left border-b border-slate-200 dark:border-slate-800">Service</th>
+                  <th className="px-3 py-3 text-left border-b border-slate-200 dark:border-slate-800">Status</th>
+                  <th className="px-3 py-3 text-left border-b border-slate-200 dark:border-slate-800">Assignee</th>
+                  <th className="px-3 py-3 text-left border-b border-slate-200 dark:border-slate-800">
+                    <button onClick={() => toggleSort('creator_name')} className="flex items-center gap-1 hover:text-blue-500 transition-colors">Requester <ArrowUpDown size={12} /></button>
+                  </th>
+                  <th className="px-3 py-3 text-left border-b border-slate-200 dark:border-slate-800">
+                    <button onClick={() => toggleSort('updated_at')} className="flex items-center gap-1 hover:text-blue-500 transition-colors">Last Update <ArrowUpDown size={12} /></button>
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
                 {filteredTickets.map((t) => (
                   <tr
                     key={t.id}
-                    className="hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer"
+                    className="hover:bg-blue-50/50 dark:hover:bg-blue-900/10 cursor-pointer transition-colors"
                     onClick={() => setSelectedTicket(t)}
                   >
-                    <td className="px-3 py-2 font-mono text-xs text-slate-500">#{t.id}</td>
-                    <td className="px-3 py-2 font-semibold text-slate-800 dark:text-slate-100 truncate">{t.title}</td>
-                    <td className="px-3 py-2 text-slate-600 dark:text-slate-300">{t.service?.name}</td>
-                    <td className="px-3 py-2">{statusBadge(t.status)}</td>
-                    <td className="px-3 py-2 text-slate-600 dark:text-slate-300">{t.assignee?.name || 'Unassigned'}</td>
-                    <td className="px-3 py-2 text-slate-600 dark:text-slate-300">{t.creator?.name || t.creator?.username}</td>
-                    <td className="px-3 py-2 text-slate-500 text-xs">{new Date(t.updated_at).toLocaleString()}</td>
+                    <td className="px-3 py-3 font-mono text-xs text-slate-500">#{t.id}</td>
+                    <td className="px-3 py-3 font-semibold text-slate-800 dark:text-slate-100 max-w-[200px] truncate">{t.title}</td>
+                    <td className="px-3 py-3 text-slate-600 dark:text-slate-300">{t.service?.name}</td>
+                    <td className="px-3 py-3">{statusBadge(t.status)}</td>
+                    <td className="px-3 py-3 text-slate-600 dark:text-slate-300">
+                      <div className="flex items-center gap-1.5">
+                        <Users size={12} className="text-slate-400" />
+                        {t.assignee?.name || <span className="text-slate-400 italic">Unassigned</span>}
+                      </div>
+                    </td>
+                    <td className="px-3 py-3 text-slate-600 dark:text-slate-300">
+                      <div className="flex items-center gap-1.5">
+                        <UserIcon size={12} className="text-slate-400" />
+                        {t.creator?.name || t.creator?.username}
+                      </div>
+                    </td>
+                    <td className="px-3 py-3 text-slate-500 text-[11px] whitespace-nowrap">
+                      {new Date(t.updated_at).toLocaleDateString()} {new Date(t.updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -708,6 +781,11 @@ export default function TicketsPage() {
               </div>
               <div className="flex items-center gap-2">{statusBadge(selectedTicket.status)}</div>
             </div>
+            {adminReadOnly && (
+              <div className="bg-amber-50 dark:bg-amber-900/10 p-3 mx-4 mt-4 rounded-lg border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200 text-xs font-semibold flex items-center gap-2">
+                <ShieldCheck size={16} /> Admin View: You are in read-only mode for this ticket.
+              </div>
+            )}
             <div className="p-4 space-y-3 text-sm text-slate-700 dark:text-slate-200">
               <div className="flex flex-wrap gap-3 text-slate-600 dark:text-slate-300">
                 <span className="flex items-center gap-1"><ClipboardList size={14} /> {selectedTicket.service?.name}</span>
@@ -740,8 +818,55 @@ export default function TicketsPage() {
                   )) : <div className="text-xs text-slate-400">No updates yet.</div>}
                 </div>
               </div>
+
+              {!adminReadOnly && (
+                <div className="pt-4 border-t border-slate-200 dark:border-slate-800 space-y-3">
+                  <div className="flex items-center gap-2 text-xs uppercase tracking-widest text-slate-500">
+                    <ChatBubbleIcon size={14} /> Add an update
+                  </div>
+                  <textarea
+                    className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"
+                    rows={3}
+                    placeholder="Type your comment or approval/rejection notes here..."
+                    value={commentText[selectedTicket.id] || ''}
+                    onChange={(e) => setCommentText((prev) => ({ ...prev, [selectedTicket.id!]: e.target.value }))}
+                    disabled={updatingTicketId === selectedTicket.id || isClosedTicket(selectedTicket)}
+                  />
+                  <div className="flex items-center gap-2">
+                    <label className="flex items-center gap-1 text-xs px-3 py-2 rounded-lg border border-dashed border-slate-300 dark:border-slate-700 cursor-pointer text-slate-600 dark:text-slate-300">
+                      <Paperclip size={14} /> Attach
+                      <input
+                        type="file"
+                        className="hidden"
+                        multiple
+                        accept=".png,.jpg,.jpeg,.svg,.pdf"
+                        onChange={(e) => setCommentFiles((prev) => ({ ...prev, [selectedTicket.id!]: e.target.files }))}
+                        disabled={updatingTicketId === selectedTicket.id || isClosedTicket(selectedTicket)}
+                      />
+                    </label>
+                    {commentFiles[selectedTicket.id] && <span className="text-xs text-slate-500">{commentFiles[selectedTicket.id]?.length} files selected</span>}
+                    <div className="ml-auto flex gap-2">
+                      <button
+                        onClick={() => addComment(selectedTicket.id)}
+                        disabled={updatingTicketId === selectedTicket.id || isClosedTicket(selectedTicket)}
+                        className="px-4 py-2 rounded-lg bg-emerald-600 text-white text-xs font-bold flex items-center gap-1 disabled:opacity-60"
+                      >
+                        {updatingTicketId === selectedTicket.id ? <Loader2 className="animate-spin" size={14} /> : <Send size={14} />} Post Update
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
-            <div className="p-3 border-t border-slate-200 dark:border-slate-800 text-right">
+            <div className="p-3 border-t border-slate-200 dark:border-slate-800 text-right space-x-2">
+              {isIt && !isAdmin && !isClosedTicket(selectedTicket) && (
+                <button
+                  onClick={() => changeStatus(selectedTicket.id, 'done')}
+                  className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition-colors"
+                >
+                  Mark as Done
+                </button>
+              )}
               <button onClick={() => setSelectedTicket(null)} className="px-4 py-2 rounded-lg bg-slate-200 dark:bg-slate-800 text-sm font-semibold text-slate-700 dark:text-slate-200">Close</button>
             </div>
           </div>
