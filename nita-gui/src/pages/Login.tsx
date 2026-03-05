@@ -6,10 +6,11 @@ import { ShieldCheck, Lock, User } from 'lucide-react';
 const Login = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [type, setType] = useState('0'); // 0: Local, 1: LDAP, 2: IPA
+  const [type, setType] = useState('1'); // 0: Local, 1: LDAP, 2: IPA
   const [error, setError] = useState('');
   const navigate = useNavigate();
 
+  
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
